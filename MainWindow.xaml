@@ -3,79 +3,68 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        
-        xmlns:vm="clr-namespace:Haier_E246_TestTool.ViewModels"
-        
         xmlns:lh="clr-namespace:Haier_E246_TestTool.LH"
-        
         mc:Ignorable="d"
         Title="工厂产品自动化测试工具 V1.0" Height="600" Width="900">
-
-    <Window.Resources>
-        <lh:LogTypeToBrushConverter x:Key="LogTypeToColorConverter"/>
-        <lh:InverseBooleanConverter x:Key="BooleanToConnectTextConverter"/>
-    </Window.Resources>
-
     <Window.DataContext>
         <vm:MainViewModel/>
     </Window.DataContext>
 
     <Grid Margin="10">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="150"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-        <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+        <Border Grid.Column="0" Background="White" CornerRadius="5" Padding="10" Margin="0,0,5,0">
+            <StackPanel>
+                <TextBlock Text="串口设置" FontWeight="Bold" FontSize="16" Margin="0,0,0,15"/>
 
-            <GroupBox Header="通信设置" Margin="0,0,10,10" Padding="10">
-                <StackPanel>
-                    <DockPanel Margin="0,5">
-                        <TextBlock Text="端口号:" Width="60"/>
-                        <ComboBox ItemsSource="{Binding AvailablePorts}" 
-                                  SelectedItem="{Binding SelectedPort}"/>
-                    </DockPanel>
-                    <DockPanel Margin="0,5">
-                        <TextBlock Text="波特率:" Width="60"/>
-                        <TextBox Text="{Binding BaudRate}"/>
-                    </DockPanel>
+                <TextBlock Text="端口号:" Margin="0,5"/>
+                <ComboBox ItemsSource="{Binding ComPorts}" 
+                          SelectedItem="{Binding SelectedPort}" 
+                          IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBoolConverter}}"/>
+                <TextBlock Text="波特率:" Margin="0,10,0,5"/>
+                <TextBox Text="{Binding BaudRate}" 
+                         IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBoolConverter}}"/>
 
-                    <Grid Margin="0,10,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Button Content="刷新端口" Command="{Binding RefreshPortsCommand}" Margin="0,0,5,0"/>
-                        <Button Content="{Binding IsConnected, Converter={StaticResource BooleanToConnectTextConverter}}" 
-                                Command="{Binding ConnectCommand}" Grid.Column="1" Margin="5,0,0,0"/>
-                    </Grid>
-                </StackPanel>
-            </GroupBox>
+                <Button Content="刷新串口" Command="{Binding RefreshPortsCommand}" Margin="0,10,0,0"/>
 
-            <GroupBox Header="功能测试" Grid.Column="1" Margin="0,0,0,10" Padding="10">
-                <UniformGrid Columns="3" Rows="2">
-                    <Button Content="读取版本" Command="{Binding SendCommand}" CommandParameter="CMD_READ_VER" Margin="5"/>
-                    <Button Content="测试 LED" Command="{Binding SendCommand}" CommandParameter="CMD_TEST_LED" Margin="5"/>
-                    <Button Content="测试 蜂鸣器" Command="{Binding SendCommand}" CommandParameter="CMD_TEST_BEEP" Margin="5"/>
-                    <Button Content="读取传感器" Command="{Binding SendCommand}" CommandParameter="CMD_READ_SENSOR" Margin="5"/>
-                    <Button Content="复位设备" Command="{Binding SendCommand}" CommandParameter="CMD_RESET" Margin="5"/>
-                </UniformGrid>
-            </GroupBox>
-        </Grid>
+                <ToggleButton IsChecked="{Binding IsConnected}" 
+                              Content="{Binding IsConnected, Converter={StaticResource ConnectBtnTextConverter}}"
+                              Command="{Binding ToggleConnectionCommand}"
+                              Height="40" Margin="0,20,0,0" FontWeight="Bold"/>
+            </StackPanel>
+        </Border>
 
-        <GroupBox Header="运行日志" Grid.Row="1">
-            <ListBox ItemsSource="{Binding Logs}" x:Name="LogListBox">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding FullMessage}" 
-                                   Foreground="{Binding Type, Converter={StaticResource LogTypeToColorConverter}}"/>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </GroupBox>
+        <Border Grid.Column="1" Background="White" CornerRadius="5" Padding="10" Margin="5,0">
+            <StackPanel>
+                <TextBlock Text="测试命令" FontWeight="Bold" FontSize="16" Margin="0,0,0,15"/>
+
+                <Button Content="握手检测" Command="{Binding SendCommandCommand}" CommandParameter="Cmd1" Margin="0,5" Height="35"/>
+                <Button Content="读取ID"   Command="{Binding SendCommandCommand}" CommandParameter="Cmd2" Margin="0,5" Height="35"/>
+                <Button Content="功能测试" Command="{Binding SendCommandCommand}" CommandParameter="Cmd3" Margin="0,5" Height="35"/>
+                <Button Content="设备复位" Command="{Binding SendCommandCommand}" CommandParameter="Cmd4" Margin="0,5" Height="35"/>
+
+                <Separator Margin="0,20"/>
+                <Button Content="清空日志" Command="{Binding ClearLogCommand}" Background="#FFDDDD"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Column="2" Background="White" CornerRadius="5" Padding="10" Margin="5,0,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="运行日志" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
+
+                <ListBox Grid.Row="1" ItemsSource="{Binding UiLogs}" 
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         FontFamily="Consolas" FontSize="12">
+                </ListBox>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

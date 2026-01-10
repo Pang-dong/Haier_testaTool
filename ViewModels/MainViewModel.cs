@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Haier_E246_TestTool.LH;       // 引用 LogModel
-using Haier_E246_TestTool.Services; // 引用 SerialPortService
+using Haier_E246_TestTool.LH;
+using Haier_E246_TestTool.Services;
 using log4net;
 using System;
 using System.Collections.ObjectModel;
@@ -12,126 +12,104 @@ namespace Haier_E246_TestTool.ViewModels
 {
     public partial class MainViewModel : ObservableObject
     {
-        // 1. 获取 Log4Net 实例
-        private static readonly ILog _fileLogger = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-
-        private readonly SerialPortService _serialService;
-        private readonly object _uiLogLock = new object();
-
-        public MainViewModel()
+        public partial class MainViewModel : ObservableObject
         {
-            _serialService = new SerialPortService();
-            _serialService.DataReceived += OnSerialDataReceived;
+            private readonly SerialPortService _serialService;
+            private readonly ILogService _logService;
+            private readonly object _logLock = new object();
 
-            // 初始化时获取端口
-            AvailablePorts = new ObservableCollection<string>(_serialService.GetAvailablePorts());
-            if (AvailablePorts.Count > 0) SelectedPort = AvailablePorts[0];
+            // 绑定属性
+            [ObservableProperty] private ObservableCollection<string> _comPorts;
+            [ObservableProperty] private string _selectedPort;
+            [ObservableProperty] private int _baudRate = 9600;
+            [ObservableProperty] private bool _isConnected;
 
-            Logs = new ObservableCollection<LogModel>();
+            // 界面显示的日志列表
+            public ObservableCollection<string> UiLogs { get; } = new ObservableCollection<string>();
 
-            // 启用跨线程集合更新
-            BindingOperations.EnableCollectionSynchronization(Logs, _uiLogLock);
-        }
-
-        [ObservableProperty]
-        private ObservableCollection<string> _availablePorts;
-
-        [ObservableProperty]
-        private string _selectedPort;
-
-        [ObservableProperty]
-        private int _baudRate = 9600;
-
-        [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
-        [NotifyCanExecuteChangedFor(nameof(SendCommand))]
-        private bool _isConnected;
-
-        [ObservableProperty]
-        private ObservableCollection<LogModel> _logs;
-
-        [RelayCommand]
-        private void RefreshPorts()
-        {
-            AvailablePorts = new ObservableCollection<string>(_serialService.GetAvailablePorts());
-            if (AvailablePorts.Count > 0) SelectedPort = AvailablePorts[0];
-            AddLog("刷新串口列表完成", "INFO");
-        }
-
-        [RelayCommand]
-        private void Connect()
-        {
-            if (IsConnected)
+            public MainViewModel()
             {
-                _serialService.Disconnect();
-                IsConnected = false;
-                AddLog("用户断开串口连接", "INFO");
+                // 初始化服务
+                _logService = new LogService();
+                _serialService = new SerialPortService(_logService);
+
+                // 绑定日志事件
+                _logService.OnNewLog += HandleNewLog;
+
+                // 绑定串口数据事件 (后续具体协议在这里处理)
+                _serialService.DataReceived += HandleDataReceived;
+
+                // 允许跨线程更新集合 (WPF特定的线程安全集合方案)
+                BindingOperations.EnableCollectionSynchronization(UiLogs, _logLock);
+
+                RefreshPorts();
             }
-            else
-            {
-                if (string.IsNullOrEmpty(SelectedPort))
-                {
-                    AddLog("请先选择端口", "ERROR");
-                    return;
-                }
 
-                if (_serialService.Connect(SelectedPort, BaudRate))
+            [RelayCommand]
+            private void RefreshPorts()
+            {
+                ComPorts = new ObservableCollection<string>(_serialService.GetAvailablePorts());
+                if (ComPorts.Count > 0) SelectedPort = ComPorts[0];
+            }
+
+            [RelayCommand]
+            private void ToggleConnection()
+            {
+                if (IsConnected)
                 {
-                    IsConnected = true;
-                    AddLog($"串口 {SelectedPort} 打开成功", "INFO");
+                    _serialService.Close();
+                    IsConnected = false;
                 }
                 else
                 {
-                    AddLog($"串口 {SelectedPort} 打开失败", "ERROR");
+                    if (string.IsNullOrEmpty(SelectedPort)) return;
+                    bool success = _serialService.Open(SelectedPort, BaudRate);
+                    IsConnected = success;
                 }
             }
-        }
 
-        [RelayCommand(CanExecute = nameof(IsConnected))]
-        private async Task Send(string commandCode)
-        {
-            if (string.IsNullOrEmpty(commandCode)) return;
-
-            await Task.Run(() =>
+            // 命令发送按钮逻辑
+            [RelayCommand]
+            private void SendCommand(string commandTag)
             {
-                try
-                {
-                    _serialService.SendData(commandCode);
-                    AddLog($"TX: {commandCode}", "TX");
-                }
-                catch (Exception ex)
-                {
-                    AddLog($"发送失败: {ex.Message}", "ERROR");
-                }
-            });
-        }
+                // 这里仅仅是框架演示，后续你可以在这里实现具体的协议封装
+                byte[] dataToSend = new byte[0];
 
-        private void OnSerialDataReceived(string data)
-        {
-            AddLog($"RX: {data.Trim()}", "RX");
-        }
+                switch (commandTag)
+                {
+                    case "Cmd1": dataToSend = new byte[] { 0x01, 0x02 }; break; // 示例：握手
+                    case "Cmd2": dataToSend = new byte[] { 0xA0, 0xFF }; break; // 示例：读ID
+                    case "Cmd3": dataToSend = new byte[] { 0xB1, 0x00 }; break; // 示例：开始测试
+                    case "Cmd4": dataToSend = new byte[] { 0xC1 }; break;       // 示例：复位
+                    default:
+                        _logService.WriteLog("未定义的命令", LogType.Warning);
+                        return;
+                }
 
-        private void AddLog(string message, string type)
-        {
-            switch (type)
-            {
-                case "ERROR": _fileLogger.Error(message); break;
-                case "TX":
-                case "RX": _fileLogger.Debug(message); break;
-                default: _fileLogger.Info(message); break;
+                _serialService.SendData(dataToSend);
             }
 
-            lock (_uiLogLock)
+            [RelayCommand]
+            private void ClearLog()
             {
-                if (Logs.Count > 1000) Logs.RemoveAt(0);
-                Logs.Add(new LogModel
+                UiLogs.Clear();
+            }
+
+            // 处理新日志（线程安全已经在 EnableCollectionSynchronization 中处理，但为了保险依然建议注意）
+            private void HandleNewLog(string msg, LogType type)
+            {
+                // 如果日志量非常大，建议限制UI显示的行数，防止界面卡顿
+                lock (_logLock)
                 {
-                    Timestamp = DateTime.Now,
-                    Message = message,
-                    Type = type
-                });
+                    if (UiLogs.Count > 1000) UiLogs.RemoveAt(0);
+                    UiLogs.Add(msg);
+                }
+            }
+
+            private void HandleDataReceived(byte[] data)
+            {
+                // TODO: 在这里解析具体的通信协议
+                // 解析完后可以通过 Application.Current.Dispatcher.Invoke 更新界面上的具体状态指示灯等
             }
         }
     }
-}
-// 注意：这里没有第3个大括号了

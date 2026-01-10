@@ -60,9 +60,8 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="LH\InverseBooleanConverter.cs" />
-    <Compile Include="LH\LogModel.cs" />
-    <Compile Include="LH\LogTypeToBrushConverter.cs" />
+    <Compile Include="Services\ILogService.cs" />
+    <Compile Include="Services\LogService.cs" />
     <Compile Include="Services\SerialPortService.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Page Include="MainWindow.xaml">
@@ -111,6 +110,9 @@
     <PackageReference Include="log4net">
       <Version>3.2.0</Version>
     </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="LH\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

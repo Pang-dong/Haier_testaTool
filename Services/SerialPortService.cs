@@ -7,69 +7,98 @@ namespace Haier_E246_TestTool.Services
 {
     public class SerialPortService : IDisposable
     {
-        private readonly SerialPort _serialPort;
-        private readonly object _writeLock = new object(); // 线程安全锁
+        private SerialPort _serialPort;
+        private readonly ILogService _logService;
 
         // 定义数据接收事件
-        public event Action<string> DataReceived;
+        public event Action<byte[]> DataReceived;
 
-        public SerialPortService()
+        public SerialPortService(ILogService logService)
         {
+            _logService = logService;
             _serialPort = new SerialPort();
-            _serialPort.DataReceived += OnDataReceived;
         }
 
         public string[] GetAvailablePorts() => SerialPort.GetPortNames();
 
-        public bool Connect(string portName, int baudRate)
+        public bool Open(string portName, int baudRate)
         {
             try
             {
-                if (_serialPort.IsOpen) _serialPort.Close();
+                if (_serialPort.IsOpen) Close();
 
                 _serialPort.PortName = portName;
                 _serialPort.BaudRate = baudRate;
+                _serialPort.DataBits = 8;
+                _serialPort.StopBits = StopBits.One;
+                _serialPort.Parity = Parity.None;
+
+                _serialPort.DataReceived += OnSerialDataReceived;
                 _serialPort.Open();
+
+                _logService.WriteLog($"串口 {portName} 打开成功", LogType.Info);
                 return true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logService.WriteLog($"打开串口失败: {ex.Message}", LogType.Error);
                 return false;
             }
         }
 
-        public void Disconnect()
+        public void Close()
         {
-            if (_serialPort.IsOpen) _serialPort.Close();
-        }
-
-        public bool IsOpen => _serialPort.IsOpen;
-
-        // 线程安全的发送方法
-        public void SendData(string data)
-        {
-            if (!_serialPort.IsOpen) return;
-
-            lock (_writeLock) // 关键：防止多线程同时写入导致资源冲突
+            if (_serialPort.IsOpen)
             {
-                byte[] bytes = Encoding.ASCII.GetBytes(data); // 根据实际设备协议调整编码
-                _serialPort.Write(bytes, 0, bytes.Length);
+                _serialPort.DataReceived -= OnSerialDataReceived;
+                _serialPort.Close();
+                _logService.WriteLog("串口已关闭", LogType.Info);
             }
         }
 
-        private void OnDataReceived(object sender, SerialDataReceivedEventArgs e)
+        public void SendData(byte[] data)
+        {
+            if (!_serialPort.IsOpen)
+            {
+                _logService.WriteLog("发送失败：串口未打开", LogType.Warning);
+                return;
+            }
+
+            try
+            {
+                _serialPort.Write(data, 0, data.Length);
+                _logService.WriteLog(BitConverter.ToString(data), LogType.Tx);
+            }
+            catch (Exception ex)
+            {
+                _logService.WriteLog($"发送异常: {ex.Message}", LogType.Error);
+            }
+        }
+
+        // 后台线程接收数据
+        private void OnSerialDataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             try
             {
-                // 读取现有所有数据
-                string data = _serialPort.ReadExisting();
-                DataReceived?.Invoke(data);
+                int bytesToRead = _serialPort.BytesToRead;
+                byte[] buffer = new byte[bytesToRead];
+                _serialPort.Read(buffer, 0, bytesToRead);
+
+                // 记录原始日志
+                _logService.WriteLog(BitConverter.ToString(buffer), LogType.Rx);
+
+                // 触发业务层事件
+                DataReceived?.Invoke(buffer);
             }
-            catch { /* 忽略读取错误或记录日志 */ }
+            catch (Exception ex)
+            {
+                _logService.WriteLog($"接收异常: {ex.Message}", LogType.Error);
+            }
         }
 
         public void Dispose()
         {
+            Close();
             _serialPort?.Dispose();
         }
     }

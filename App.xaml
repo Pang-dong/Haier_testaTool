@@ -1,9 +1,7 @@
 ﻿<Application x:Class="Haier_E246_TestTool.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:Haier_E246_TestTool"
-             StartupUri="MainWindow.xaml">
+             xmlns:local="clr-namespace:Haier_E246_TestTool">
     <Application.Resources>
-         
     </Application.Resources>
 </Application>
