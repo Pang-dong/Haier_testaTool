@@ -3,10 +3,18 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        
         xmlns:vm="clr-namespace:Haier_E246_TestTool.ViewModels"
-        xmlns:c="clr-namespace:Haier_E246_TestTool.Services"
+        
+        xmlns:lh="clr-namespace:Haier_E246_TestTool.LH"
+        
         mc:Ignorable="d"
         Title="工厂产品自动化测试工具 V1.0" Height="600" Width="900">
+
+    <Window.Resources>
+        <lh:LogTypeToBrushConverter x:Key="LogTypeToColorConverter"/>
+        <lh:InverseBooleanConverter x:Key="BooleanToConnectTextConverter"/>
+    </Window.Resources>
 
     <Window.DataContext>
         <vm:MainViewModel/>

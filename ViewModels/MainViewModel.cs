@@ -1,9 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Haier_E246_TestTool.LH;
-
-using Haier_E246_TestTool.LH; // 删除这行，看起来是误写的
-using Haier_E246_TestTool.Services; // 【关键修复】引用 SerialPortService
+using Haier_E246_TestTool.LH;       // 引用 LogModel
+using Haier_E246_TestTool.Services; // 引用 SerialPortService
 using log4net;
 using System;
 using System.Collections.ObjectModel;
@@ -27,7 +25,6 @@ namespace Haier_E246_TestTool.ViewModels
 
             // 初始化时获取端口
             AvailablePorts = new ObservableCollection<string>(_serialService.GetAvailablePorts());
-            // 如果有端口，默认选中第一个
             if (AvailablePorts.Count > 0) SelectedPort = AvailablePorts[0];
 
             Logs = new ObservableCollection<LogModel>();
@@ -47,13 +44,12 @@ namespace Haier_E246_TestTool.ViewModels
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
-        [NotifyCanExecuteChangedFor(nameof(SendCommand))] // 连接状态改变时，同时也刷新发送按钮的状态
+        [NotifyCanExecuteChangedFor(nameof(SendCommand))]
         private bool _isConnected;
 
         [ObservableProperty]
         private ObservableCollection<LogModel> _logs;
 
-        // 【关键修复】补全 XAML 中绑定的刷新端口命令
         [RelayCommand]
         private void RefreshPorts()
         {
@@ -117,7 +113,6 @@ namespace Haier_E246_TestTool.ViewModels
 
         private void AddLog(string message, string type)
         {
-            // 1. 写文件
             switch (type)
             {
                 case "ERROR": _fileLogger.Error(message); break;
@@ -126,7 +121,6 @@ namespace Haier_E246_TestTool.ViewModels
                 default: _fileLogger.Info(message); break;
             }
 
-            // 2. 写界面
             lock (_uiLogLock)
             {
                 if (Logs.Count > 1000) Logs.RemoveAt(0);
@@ -140,3 +134,4 @@ namespace Haier_E246_TestTool.ViewModels
         }
     }
 }
+// 注意：这里没有第3个大括号了
