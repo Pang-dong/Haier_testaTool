@@ -13,5 +13,11 @@ namespace Haier_E246_TestTool
     /// </summary>
     public partial class App : Application
     {
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            base.OnStartup(e);
+            // 初始化 Log4Net
+            log4net.Config.XmlConfigurator.Configure();
+        }
     }
 }

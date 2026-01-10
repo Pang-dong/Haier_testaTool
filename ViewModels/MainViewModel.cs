@@ -1,237 +1,142 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using ProductTestTool.Services;
+using Haier_E246_TestTool.LH;
+
+using Haier_E246_TestTool.LH; // 删除这行，看起来是误写的
+using Haier_E246_TestTool.Services; // 【关键修复】引用 SerialPortService
+using log4net;
 using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
-using System.Windows;
+using System.Windows.Data;
 
-namespace ProductTestTool.ViewModels
+namespace Haier_E246_TestTool.ViewModels
 {
-    /// <summary>
-    /// 主视图模型
-    /// </summary>
     public partial class MainViewModel : ObservableObject
     {
-        private readonly SerialPortService _serialPort = new SerialPortService();
+        // 1. 获取 Log4Net 实例
+        private static readonly ILog _fileLogger = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-        #region 串口设置属性
+        private readonly SerialPortService _serialService;
+        private readonly object _uiLogLock = new object();
+
+        public MainViewModel()
+        {
+            _serialService = new SerialPortService();
+            _serialService.DataReceived += OnSerialDataReceived;
+
+            // 初始化时获取端口
+            AvailablePorts = new ObservableCollection<string>(_serialService.GetAvailablePorts());
+            // 如果有端口，默认选中第一个
+            if (AvailablePorts.Count > 0) SelectedPort = AvailablePorts[0];
+
+            Logs = new ObservableCollection<LogModel>();
+
+            // 启用跨线程集合更新
+            BindingOperations.EnableCollectionSynchronization(Logs, _uiLogLock);
+        }
 
         [ObservableProperty]
-        private ObservableCollection<string> _portNames = new ObservableCollection<string>();
+        private ObservableCollection<string> _availablePorts;
 
         [ObservableProperty]
         private string _selectedPort;
 
         [ObservableProperty]
-        private ObservableCollection<int> _baudRates = new ObservableCollection<int> 
-        { 9600, 19200, 38400, 57600, 115200, 230400 };
+        private int _baudRate = 9600;
 
         [ObservableProperty]
-        private int _selectedBaudRate = 115200;
-
-        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
+        [NotifyCanExecuteChangedFor(nameof(SendCommand))] // 连接状态改变时，同时也刷新发送按钮的状态
         private bool _isConnected;
 
         [ObservableProperty]
-        private string _connectionStatus = "未连接";
+        private ObservableCollection<LogModel> _logs;
 
-        #endregion
-
-        #region 日志
-
-        [ObservableProperty]
-        private string _logText = "";
-
-        #endregion
-
-        #region 构造函数
-
-        public MainViewModel()
-        {
-            RefreshPorts();
-
-            _serialPort.DataReceived += OnDataReceived;
-            _serialPort.ErrorOccurred += msg => AppendLog($"[错误] {msg}");
-        }
-
-        #endregion
-
-        #region 串口命令
-
+        // 【关键修复】补全 XAML 中绑定的刷新端口命令
         [RelayCommand]
         private void RefreshPorts()
         {
-            PortNames.Clear();
-            foreach (var port in _serialPort.GetAvailablePorts())
-            {
-                PortNames.Add(port);
-            }
-            if (PortNames.Count > 0 && string.IsNullOrEmpty(SelectedPort))
-            {
-                SelectedPort = PortNames[0];
-            }
-            AppendLog($"[信息] 发现 {PortNames.Count} 个串口");
+            AvailablePorts = new ObservableCollection<string>(_serialService.GetAvailablePorts());
+            if (AvailablePorts.Count > 0) SelectedPort = AvailablePorts[0];
+            AddLog("刷新串口列表完成", "INFO");
         }
 
         [RelayCommand]
-        private void ToggleConnection()
+        private void Connect()
         {
             if (IsConnected)
             {
-                _serialPort.Close();
+                _serialService.Disconnect();
                 IsConnected = false;
-                ConnectionStatus = "未连接";
-                AppendLog("[信息] 已断开连接");
+                AddLog("用户断开串口连接", "INFO");
             }
             else
             {
                 if (string.IsNullOrEmpty(SelectedPort))
                 {
-                    AppendLog("[警告] 请选择串口");
+                    AddLog("请先选择端口", "ERROR");
                     return;
                 }
 
-                if (_serialPort.Open(SelectedPort, SelectedBaudRate))
+                if (_serialService.Connect(SelectedPort, BaudRate))
                 {
                     IsConnected = true;
-                    ConnectionStatus = $"已连接 ({SelectedPort})";
-                    AppendLog($"[信息] 已连接到 {SelectedPort}, 波特率: {SelectedBaudRate}");
+                    AddLog($"串口 {SelectedPort} 打开成功", "INFO");
+                }
+                else
+                {
+                    AddLog($"串口 {SelectedPort} 打开失败", "ERROR");
                 }
             }
         }
 
-        #endregion
-
-        #region 测试命令按钮 (根据实际协议修改)
-
-        [RelayCommand]
-        private async Task ExecuteCommand1Async()
+        [RelayCommand(CanExecute = nameof(IsConnected))]
+        private async Task Send(string commandCode)
         {
-            if (!CheckConnection()) return;
+            if (string.IsNullOrEmpty(commandCode)) return;
 
-            AppendLog("[发送] 命令1: 读取设备信息");
-            // TODO: 根据实际协议修改命令
-            byte[] command = { 0x01, 0x03, 0x00, 0x00, 0x00, 0x01 };
-            await SendCommandAsync(command);
-        }
-
-        [RelayCommand]
-        private async Task ExecuteCommand2Async()
-        {
-            if (!CheckConnection()) return;
-
-            AppendLog("[发送] 命令2: 读取状态");
-            // TODO: 根据实际协议修改命令
-            byte[] command = { 0x01, 0x03, 0x00, 0x01, 0x00, 0x01 };
-            await SendCommandAsync(command);
-        }
-
-        [RelayCommand]
-        private async Task ExecuteCommand3Async()
-        {
-            if (!CheckConnection()) return;
-
-            AppendLog("[发送] 命令3: 写入参数");
-            // TODO: 根据实际协议修改命令
-            byte[] command = { 0x01, 0x06, 0x00, 0x00, 0x00, 0x01 };
-            await SendCommandAsync(command);
-        }
-
-        [RelayCommand]
-        private async Task ExecuteCommand4Async()
-        {
-            if (!CheckConnection()) return;
-
-            AppendLog("[发送] 命令4: 复位设备");
-            // TODO: 根据实际协议修改命令
-            byte[] command = { 0x01, 0x06, 0x00, 0x01, 0x00, 0x00 };
-            await SendCommandAsync(command);
-        }
-
-        [RelayCommand]
-        private async Task ExecuteCommand5Async()
-        {
-            if (!CheckConnection()) return;
-
-            AppendLog("[发送] 命令5: 自定义测试");
-            // TODO: 根据实际协议修改命令
-            byte[] command = { 0x01, 0x04, 0x00, 0x00, 0x00, 0x01 };
-            await SendCommandAsync(command);
-        }
-
-        #endregion
-
-        #region 日志命令
-
-        [RelayCommand]
-        private void ClearLog()
-        {
-            LogText = "";
-        }
-
-        #endregion
-
-        #region 辅助方法
-
-        private bool CheckConnection()
-        {
-            if (!IsConnected)
+            await Task.Run(() =>
             {
-                AppendLog("[警告] 请先连接串口");
-                return false;
-            }
-            return true;
-        }
-
-        private async Task SendCommandAsync(byte[] command)
-        {
-            var hexStr = BitConverter.ToString(command).Replace("-", " ");
-            AppendLog($"[TX] {hexStr}");
-
-            var response = await _serialPort.SendAndReceiveAsync(command, 3000);
-
-            if (response != null && response.Length > 0)
-            {
-                var respHex = BitConverter.ToString(response).Replace("-", " ");
-                AppendLog($"[RX] {respHex}");
-                ParseResponse(response);
-            }
-            else
-            {
-                AppendLog("[警告] 无响应或超时");
-            }
-        }
-
-        /// <summary>
-        /// 解析响应数据 - 根据实际协议实现
-        /// </summary>
-        private void ParseResponse(byte[] data)
-        {
-            // TODO: 根据实际协议解析响应
-            AppendLog($"[解析] 收到 {data.Length} 字节数据");
-        }
-
-        private void OnDataReceived(byte[] data)
-        {
-            var hexStr = BitConverter.ToString(data).Replace("-", " ");
-            Application.Current?.Dispatcher?.Invoke(() =>
-            {
-                AppendLog($"[RX] {hexStr}");
+                try
+                {
+                    _serialService.SendData(commandCode);
+                    AddLog($"TX: {commandCode}", "TX");
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"发送失败: {ex.Message}", "ERROR");
+                }
             });
         }
 
-        private void AppendLog(string message)
+        private void OnSerialDataReceived(string data)
         {
-            var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
-            LogText += $"[{timestamp}] {message}\r\n";
+            AddLog($"RX: {data.Trim()}", "RX");
         }
 
-        public void Cleanup()
+        private void AddLog(string message, string type)
         {
-            _serialPort?.Dispose();
-        }
+            // 1. 写文件
+            switch (type)
+            {
+                case "ERROR": _fileLogger.Error(message); break;
+                case "TX":
+                case "RX": _fileLogger.Debug(message); break;
+                default: _fileLogger.Info(message); break;
+            }
 
-        #endregion
+            // 2. 写界面
+            lock (_uiLogLock)
+            {
+                if (Logs.Count > 1000) Logs.RemoveAt(0);
+                Logs.Add(new LogModel
+                {
+                    Timestamp = DateTime.Now,
+                    Message = message,
+                    Type = type
+                });
+            }
+        }
     }
 }

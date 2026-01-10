@@ -3,144 +3,71 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:Haier_E246_TestTool"
+        xmlns:vm="clr-namespace:Haier_E246_TestTool.ViewModels"
+        xmlns:c="clr-namespace:Haier_E246_TestTool.Services"
         mc:Ignorable="d"
-        Title="产品测试工具" 
-        Height="500" Width="750"
-        MinHeight="400" MinWidth="600"
-        WindowStartupLocation="CenterScreen">
+        Title="工厂产品自动化测试工具 V1.0" Height="600" Width="900">
 
     <Window.DataContext>
         <vm:MainViewModel/>
     </Window.DataContext>
 
-    <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-
-        <Style x:Key="CmdBtnStyle" TargetType="Button">
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Margin" Value="5"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-    </Window.Resources>
-
     <Grid Margin="10">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="200"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- 左侧：串口设置 -->
-        <GroupBox Grid.Column="0" Header="串口设置" Padding="10">
-            <StackPanel>
-                <!-- 连接状态 -->
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                    <Ellipse Width="12" Height="12" Margin="0,0,8,0">
-                        <Ellipse.Style>
-                            <Style TargetType="Ellipse">
-                                <Setter Property="Fill" Value="Gray"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                        <Setter Property="Fill" Value="Green"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Ellipse.Style>
-                    </Ellipse>
-                    <TextBlock Text="{Binding ConnectionStatus}" VerticalAlignment="Center"/>
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <GroupBox Header="通信设置" Margin="0,0,10,10" Padding="10">
+                <StackPanel>
+                    <DockPanel Margin="0,5">
+                        <TextBlock Text="端口号:" Width="60"/>
+                        <ComboBox ItemsSource="{Binding AvailablePorts}" 
+                                  SelectedItem="{Binding SelectedPort}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,5">
+                        <TextBlock Text="波特率:" Width="60"/>
+                        <TextBox Text="{Binding BaudRate}"/>
+                    </DockPanel>
+
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Content="刷新端口" Command="{Binding RefreshPortsCommand}" Margin="0,0,5,0"/>
+                        <Button Content="{Binding IsConnected, Converter={StaticResource BooleanToConnectTextConverter}}" 
+                                Command="{Binding ConnectCommand}" Grid.Column="1" Margin="5,0,0,0"/>
+                    </Grid>
                 </StackPanel>
-
-                <!-- 端口选择 -->
-                <TextBlock Text="端口:" Margin="0,0,0,3"/>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <ComboBox ItemsSource="{Binding PortNames}" 
-                              SelectedItem="{Binding SelectedPort}"
-                              IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBool}}"/>
-                    <Button Grid.Column="1" Content="刷新" Width="45" Margin="5,0,0,0"
-                            Command="{Binding RefreshPortsCommand}"
-                            IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBool}}"/>
-                </Grid>
-
-                <!-- 波特率 -->
-                <TextBlock Text="波特率:" Margin="0,10,0,3"/>
-                <ComboBox ItemsSource="{Binding BaudRates}" 
-                          SelectedItem="{Binding SelectedBaudRate}"
-                          IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBool}}"/>
-
-                <!-- 连接按钮 -->
-                <Button Margin="0,15,0,0" Height="35" Command="{Binding ToggleConnectionCommand}">
-                    <Button.Style>
-                        <Style TargetType="Button">
-                            <Setter Property="Content" Value="连接"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                    <Setter Property="Content" Value="断开"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </StackPanel>
-        </GroupBox>
-
-        <!-- 右侧：命令区和日志 -->
-        <Grid Grid.Column="1" Margin="10,0,0,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
-            <!-- 命令按钮区 -->
-            <GroupBox Grid.Row="0" Header="测试命令" Padding="5">
-                <WrapPanel>
-                    <Button Content="命令1: 读取信息" Width="130"
-                            Style="{StaticResource CmdBtnStyle}"
-                            Command="{Binding ExecuteCommand1Command}"/>
-                    <Button Content="命令2: 读取状态" Width="130"
-                            Style="{StaticResource CmdBtnStyle}"
-                            Command="{Binding ExecuteCommand2Command}"/>
-                    <Button Content="命令3: 写入参数" Width="130"
-                            Style="{StaticResource CmdBtnStyle}"
-                            Command="{Binding ExecuteCommand3Command}"/>
-                    <Button Content="命令4: 复位设备" Width="130"
-                            Style="{StaticResource CmdBtnStyle}"
-                            Command="{Binding ExecuteCommand4Command}"/>
-                    <Button Content="命令5: 自定义" Width="130"
-                            Style="{StaticResource CmdBtnStyle}"
-                            Command="{Binding ExecuteCommand5Command}"/>
-                </WrapPanel>
             </GroupBox>
 
-            <!-- 日志区 -->
-            <GroupBox Grid.Row="1" Header="通信日志" Margin="0,10,0,0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <TextBox Grid.Row="0" 
-                             Text="{Binding LogText}" 
-                             IsReadOnly="True"
-                             VerticalScrollBarVisibility="Auto"
-                             HorizontalScrollBarVisibility="Auto"
-                             FontFamily="Consolas"
-                             FontSize="12"
-                             TextWrapping="NoWrap"
-                             AcceptsReturn="True"/>
-
-                    <Button Grid.Row="1" Content="清空日志" 
-                            HorizontalAlignment="Right" 
-                            Margin="0,5,0,0"
-                            Padding="15,5"
-                            Command="{Binding ClearLogCommand}"/>
-                </Grid>
+            <GroupBox Header="功能测试" Grid.Column="1" Margin="0,0,0,10" Padding="10">
+                <UniformGrid Columns="3" Rows="2">
+                    <Button Content="读取版本" Command="{Binding SendCommand}" CommandParameter="CMD_READ_VER" Margin="5"/>
+                    <Button Content="测试 LED" Command="{Binding SendCommand}" CommandParameter="CMD_TEST_LED" Margin="5"/>
+                    <Button Content="测试 蜂鸣器" Command="{Binding SendCommand}" CommandParameter="CMD_TEST_BEEP" Margin="5"/>
+                    <Button Content="读取传感器" Command="{Binding SendCommand}" CommandParameter="CMD_READ_SENSOR" Margin="5"/>
+                    <Button Content="复位设备" Command="{Binding SendCommand}" CommandParameter="CMD_RESET" Margin="5"/>
+                </UniformGrid>
             </GroupBox>
         </Grid>
+
+        <GroupBox Header="运行日志" Grid.Row="1">
+            <ListBox ItemsSource="{Binding Logs}" x:Name="LogListBox">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding FullMessage}" 
+                                   Foreground="{Binding Type, Converter={StaticResource LogTypeToColorConverter}}"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </GroupBox>
     </Grid>
 </Window>
