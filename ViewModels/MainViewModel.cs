@@ -160,7 +160,7 @@ namespace Haier_E246_TestTool.ViewModels
             {
                 case "Cmd1": // 握手
                     cmdId = 0x01;
-                    paramsData = new byte[] { 0x01 }; // 示例参数
+                    paramsData = new byte[] { 0x01 }; 
                     break;
                 case "Cmd2": // 读取ID
                     cmdId = 0x02;
