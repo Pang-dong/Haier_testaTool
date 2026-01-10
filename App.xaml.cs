@@ -1,4 +1,5 @@
-﻿using Haier_E246_TestTool.Services;
+﻿using Haier_E246_TestTool.Models;
+using Haier_E246_TestTool.Services;
 using Haier_E246_TestTool.ViewModels;
 using System.Windows;
 
@@ -8,36 +9,44 @@ namespace Haier_E246_TestTool
     {
         private SerialPortService _serialService;
         private LogService _logService;
+        private ConfigService _configService; // 新增配置服务
         private MainViewModel _mainViewModel;
         private MainWindow _mainWindow;
+        private AppConfig _appConfig; // 全局配置对象
 
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
-            // 1. 先创建日志服务
+            // 1. 初始化基础服务
             _logService = new LogService();
+            _configService = new ConfigService(_logService);
 
-            // 2. 创建串口服务 (注入日志服务)
+            // 2. 加载配置 (如果文件不存在会自动返回默认值)
+            _appConfig = _configService.Load();
+
+            // 3. 初始化串口服务
             _serialService = new SerialPortService(_logService);
 
-            // 3. 创建 ViewModel (注入串口服务)
-            string stationName = "Station-001";
-            _mainViewModel = new MainViewModel(_serialService, stationName);
+            // 4. 创建 ViewModel (注入配置对象)
+            _mainViewModel = new MainViewModel(_serialService, _appConfig);
 
-            // **** 关键：当日志服务有新消息时，推送到界面显示 ****
+            // 绑定日志事件
             _logService.OnNewLog += (msg, type) =>
             {
                 _mainViewModel.AddLog(msg);
             };
 
-            // 4. 创建窗口并绑定数据
+            // 5. 创建并显示窗口
             _mainWindow = new MainWindow();
             _mainWindow.DataContext = _mainViewModel;
 
-            // 5. 窗口关闭时清理资源
+            // 6. 处理关闭事件：保存配置、清理资源
             _mainWindow.Closing += (s, args) =>
             {
+                // 保存当前的界面设置到文件
+                _configService.Save(_appConfig);
+
                 _mainViewModel.Cleanup();
                 _serialService.Dispose();
             };
