@@ -11,34 +11,62 @@ namespace Haier_E246_TestTool.ViewModels
         private readonly SerialPortService _serialService;
         private readonly object _logLock = new object();
 
-        // 绑定属性
-        [ObservableProperty] private ObservableCollection<string> _comPorts;
-        [ObservableProperty] private string _selectedPort;
-        [ObservableProperty] private int _baudRate = 9600;
-        [ObservableProperty] private bool _isConnected;
-        [ObservableProperty] private string _stationName; // 工位名称
+        private ObservableCollection<string> _comPorts;
+        public ObservableCollection<string> ComPorts
+        {
+            get => _comPorts;
+            set => SetProperty(ref _comPorts, value);
+        }
 
-        // 界面显示的日志列表
+        private string _selectedPort;
+        public string SelectedPort
+        {
+            get => _selectedPort;
+            set => SetProperty(ref _selectedPort, value);
+        }
+
+        private int _baudRate = 9600;
+        public int BaudRate
+        {
+            get => _baudRate;
+            set => SetProperty(ref _baudRate, value);
+        }
+
+        private bool _isConnected;
+        public bool IsConnected
+        {
+            get => _isConnected;
+            set => SetProperty(ref _isConnected, value);
+        }
+
+        private string _stationName;
+        public string StationName
+        {
+            get => _stationName;
+            set => SetProperty(ref _stationName, value);
+        }
+
         public ObservableCollection<string> UiLogs { get; } = new ObservableCollection<string>();
 
-        // 构造函数：这里接收外部传进来的服务
+        public MainViewModel()
+        {
+        }
+
+        // 实际运行时调用的构造函数
         public MainViewModel(SerialPortService serialService, string stationName)
         {
             _serialService = serialService;
-            StationName = stationName;
+            StationName = stationName; // 此时 StationName 属性已手动定义，不会报错了
 
-            // 开启多线程集合同步（防止日志报错）
             BindingOperations.EnableCollectionSynchronization(UiLogs, _logLock);
-
             RefreshPorts();
         }
 
-        // 供外部调用的加日志方法
+        // 添加日志的方法
         public void AddLog(string msg)
         {
             lock (_logLock)
             {
-                // 限制显示最近1000条，防止卡顿
                 if (UiLogs.Count > 1000) UiLogs.RemoveAt(0);
                 UiLogs.Add(msg);
             }
@@ -47,6 +75,7 @@ namespace Haier_E246_TestTool.ViewModels
         [RelayCommand]
         private void RefreshPorts()
         {
+            if (_serialService == null) return;
             ComPorts = new ObservableCollection<string>(_serialService.GetAvailablePorts());
             if (ComPorts.Count > 0) SelectedPort = ComPorts[0];
         }
@@ -54,6 +83,8 @@ namespace Haier_E246_TestTool.ViewModels
         [RelayCommand]
         private void ToggleConnection()
         {
+            if (_serialService == null) return;
+
             if (IsConnected)
             {
                 _serialService.Close();
@@ -70,8 +101,9 @@ namespace Haier_E246_TestTool.ViewModels
         [RelayCommand]
         private void SendCommand(string commandTag)
         {
-            byte[] dataToSend = new byte[0];
+            if (_serialService == null) return;
 
+            byte[] dataToSend = new byte[0];
             switch (commandTag)
             {
                 case "Cmd1": dataToSend = new byte[] { 0x01, 0x02 }; break;
@@ -80,7 +112,6 @@ namespace Haier_E246_TestTool.ViewModels
                 case "Cmd4": dataToSend = new byte[] { 0xC1 }; break;
                 default: return;
             }
-
             _serialService.SendData(dataToSend);
         }
 

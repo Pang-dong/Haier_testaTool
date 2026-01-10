@@ -23,7 +23,6 @@ namespace Haier_E246_TestTool.LH
         }
     }
 
-    // 连接按钮文字转换器：True显示"关闭串口"，False显示"打开串口"
     public class ConnectBtnTextConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
