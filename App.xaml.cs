@@ -7,6 +7,7 @@ namespace Haier_E246_TestTool
     public partial class App : Application
     {
         private SerialPortService _serialService;
+        private LogService _logService;
         private MainViewModel _mainViewModel;
         private MainWindow _mainWindow;
 
@@ -14,29 +15,33 @@ namespace Haier_E246_TestTool
         {
             base.OnStartup(e);
 
-            // 1. 初始化日志
-            log4net.Config.XmlConfigurator.Configure();
+            // 1. 先创建日志服务
+            _logService = new LogService();
 
-            // 2. 创建服务实例 (Service)
-            _serialService = new SerialPortService();
+            // 2. 创建串口服务 (注入日志服务)
+            _serialService = new SerialPortService(_logService);
 
-            // 3. 创建 ViewModel，并注入服务和配置参数 (Dependency Injection)
-            // 假设从配置文件读取了工位名称 "Station-001"
+            // 3. 创建 ViewModel (注入串口服务)
             string stationName = "Station-001";
             _mainViewModel = new MainViewModel(_serialService, stationName);
 
-            // 4. 创建 Window，并赋值 DataContext
+            // **** 关键：当日志服务有新消息时，推送到界面显示 ****
+            _logService.OnNewLog += (msg, type) =>
+            {
+                _mainViewModel.AddLog(msg);
+            };
+
+            // 4. 创建窗口并绑定数据
             _mainWindow = new MainWindow();
             _mainWindow.DataContext = _mainViewModel;
 
-            // 5. 处理关闭事件，清理资源
+            // 5. 窗口关闭时清理资源
             _mainWindow.Closing += (s, args) =>
             {
                 _mainViewModel.Cleanup();
-                _serialService.Dispose(); // 服务生命周期随 App 结束
+                _serialService.Dispose();
             };
 
-            // 6. 显示窗口
             _mainWindow.Show();
         }
     }

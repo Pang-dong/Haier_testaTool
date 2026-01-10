@@ -14,8 +14,6 @@ namespace Haier_E246_TestTool
         public MainWindow()
         {
             InitializeComponent();
-            // 确保在窗口关闭时清理 ViewModel 资源
-            Closing += (s, e) => (DataContext as MainViewModel)?.Cleanup();
         }
     }
 }

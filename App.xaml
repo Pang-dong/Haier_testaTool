@@ -1,7 +1,9 @@
 ﻿<Application x:Class="Haier_E246_TestTool.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:Haier_E246_TestTool">
+             xmlns:cv="clr-namespace:Haier_E246_TestTool.Converters">
     <Application.Resources>
+        <cv:InverseBoolConverter x:Key="InverseBoolConverter"/>
+        <cv:ConnectBtnTextConverter x:Key="ConnectBtnTextConverter"/>
     </Application.Resources>
 </Application>
