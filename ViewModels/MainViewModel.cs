@@ -6,6 +6,7 @@ using System.Windows.Data;
 using Haier_E246_TestTool.Protocols;
 using System;
 using Haier_E246_TestTool.Models;
+using System.Windows;
 
 namespace Haier_E246_TestTool.ViewModels
 {
@@ -14,6 +15,7 @@ namespace Haier_E246_TestTool.ViewModels
         private readonly SerialPortService _serialService;
         private readonly object _logLock = new object();
         private readonly PacketParser _parser = new PacketParser();
+        private readonly ILogService _logService;
         public AppConfig CurrentConfig { get; private set; }
 
         private ObservableCollection<string> _comPorts;
@@ -100,15 +102,14 @@ namespace Haier_E246_TestTool.ViewModels
             {
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
-                    // 记录原始响应日志
-                    // AddLog($"收到CMD: {packet.CommandId:X2}, Len: {packet.Payload.Length}");
+                    AddLog($"收到CMD: {packet.CommandId:X2}, Len: {packet.Payload.Length}");
 
                     switch (packet.CommandId)
                     {
-                        case 0x01: // 固件版本
+                        case 0x00: // 固件版本
                             // 假设版本号是字符串或Hex，这里按Hex显示，您可以根据实际情况改为 Encoding.ASCII.GetString(packet.Payload)
-                            string version = BitConverter.ToString(packet.Payload).Replace("-", ".");
-                            AddLog($"[响应] 固件版本: {version}");
+                            //string version = BitConverter.ToString(packet.Payload).Replace("-", ".");
+                            AddLog("进入产测成功");
                             break;
 
                         case 0x02: // MAC 地址
@@ -166,17 +167,14 @@ namespace Haier_E246_TestTool.ViewModels
                 _serialService.Close();
                 IsConnected = false;
             }
-            else
+            if (string.IsNullOrEmpty(SelectedPort))
             {
-                if (string.IsNullOrEmpty(SelectedPort))
-                {
-                    System.Windows.MessageBox.Show("请先选择一个串口端口！");
-                    AddLog("[警告] 试图打开串口，但未选择端口号");
-                    return;
-                }
-                bool success = _serialService.Open(SelectedPort, BaudRate);
-                IsConnected = success;
+                System.Windows.MessageBox.Show("请先选择一个串口端口！");
+                AddLog("[警告] 试图打开串口，但未选择端口号");
+                return;
             }
+            bool success = _serialService.Open(SelectedPort, BaudRate);
+            IsConnected = success;
         }
 
         [RelayCommand]
@@ -194,7 +192,7 @@ namespace Haier_E246_TestTool.ViewModels
             switch (commandTag)
             {
                 case "Cmd1": // 握手
-                    cmdId = 0x01;
+                    cmdId = 0x00;
                     break;
                 case "Cmd2": // 读取ID
                     cmdId = 0x02;
@@ -214,6 +212,7 @@ namespace Haier_E246_TestTool.ViewModels
             // 3. 发送
             _serialService.SendData(finalBytes);
             AddLog($"[发送] Cmd_{cmdId:X2} ({commandTag})");
+            //_logService.WriteLog($"[发送] Cmd_{cmdId:X2} ({commandTag})");
         }
 
         [RelayCommand]

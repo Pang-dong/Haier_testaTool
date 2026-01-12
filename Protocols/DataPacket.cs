@@ -52,8 +52,9 @@ namespace Haier_E246_TestTool.Protocols
             offset = 0;
 
             // Magic (2 bytes, Little Endian: 0xA5, 0x5A)
-            fullPacket[offset++] = (byte)(MagicNumber & 0xFF);
+            
             fullPacket[offset++] = (byte)((MagicNumber >> 8) & 0xFF);
+            fullPacket[offset++] = (byte)(MagicNumber & 0xFF);
 
             // CRC (2 bytes, Little Endian)
             fullPacket[offset++] = (byte)(crc & 0xFF);
