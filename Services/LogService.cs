@@ -1,40 +1,42 @@
-﻿using System;
-using System.IO;
+﻿using log4net; // 引用 log4net
+using System;
 
 namespace Haier_E246_TestTool.Services
 {
     public class LogService : ILogService
     {
+        // 1. 获取 log4net 的 logger 实例
+        private static readonly ILog log = LogManager.GetLogger(typeof(LogService));
+
         public event Action<string, LogType> OnNewLog;
-        private readonly object _lockObj = new object();
-        private readonly string _logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
 
         public LogService()
         {
-            if (!Directory.Exists(_logPath)) Directory.CreateDirectory(_logPath);
+            // log4net 初始化已经在 AssemblyInfo.cs 里配置了 [assembly: XmlConfigurator(Watch = true)]
+            // 所以这里不需要额外代码
         }
 
-        // 实现接口，加入 saveToFile 参数
         public void WriteLog(string message, LogType type, bool saveToFile)
         {
-            string timeStr = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-            string formattedMsg = $"[{timeStr}] [{type}] {message}";
+            // 1. 触发 UI 更新事件 (这一步保持不变，用于界面显示)
+            // 为了界面好看，这里可以简单拼接一下，或者直接传原始 msg
+            string uiMsg = $"[{DateTime.Now:HH:mm:ss.fff}] [{type}] {message}";
+            OnNewLog?.Invoke(uiMsg, type);
 
-            // 1. 永远通知 UI 显示（界面日志要全）
-            OnNewLog?.Invoke(formattedMsg, type);
-
-            // 2. 只有当要求保存时，才写入文件（文件日志要精简）
+            // 2. 使用 log4net 写入文件
             if (saveToFile)
             {
-                lock (_lockObj)
+                switch (type)
                 {
-                    try
-                    {
-                        // 按天生成文件名
-                        string fileName = Path.Combine(_logPath, $"{DateTime.Now:yyyyMMdd}.log");
-                        File.AppendAllText(fileName, formattedMsg + Environment.NewLine);
-                    }
-                    catch { /* 忽略占用错误 */ }
+                    case LogType.Error:
+                        log.Error(message);
+                        break;
+                    case LogType.Warning:
+                        log.Warn(message);
+                        break;
+                    default:
+                        log.Info(message); // Info, Rx, Tx 都记为 Info
+                        break;
                 }
             }
         }

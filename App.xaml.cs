@@ -29,7 +29,7 @@ namespace Haier_E246_TestTool
             _serialService = new SerialPortService(_logService);
 
             // 4. 创建 ViewModel (注入配置对象)
-            _mainViewModel = new MainViewModel(_serialService, _appConfig);
+            _mainViewModel = new MainViewModel(_serialService, _appConfig,_logService);
 
             // 绑定日志事件
             _logService.OnNewLog += (msg, type) =>

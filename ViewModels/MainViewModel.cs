@@ -12,6 +12,7 @@ namespace Haier_E246_TestTool.ViewModels
 {
     public partial class MainViewModel : ObservableObject
     {
+        //private static readonly log4net.ILog logger = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         private readonly SerialPortService _serialService;
         private readonly object _logLock = new object();
         private readonly PacketParser _parser = new PacketParser();
@@ -80,9 +81,10 @@ namespace Haier_E246_TestTool.ViewModels
         }
 
         // 实际运行时调用的构造函数
-        public MainViewModel(SerialPortService serialService, AppConfig config)
+        public MainViewModel(SerialPortService serialService, AppConfig config,ILogService logService)
         {
             _serialService = serialService;
+            _logService = logService;
             CurrentConfig = config;
             StationName = config.StationName;
             BaudRate = config.BaudRate;
@@ -211,8 +213,7 @@ namespace Haier_E246_TestTool.ViewModels
 
             // 3. 发送
             _serialService.SendData(finalBytes);
-            AddLog($"[发送] Cmd_{cmdId:X2} ({commandTag})");
-            //_logService.WriteLog($"[发送] Cmd_{cmdId:X2} ({commandTag})");
+            _logService.WriteLog($"[发送] Cmd_{cmdId:X2}{BitConverter.ToString(finalBytes)}");
         }
 
         [RelayCommand]
