@@ -168,7 +168,12 @@ namespace Haier_E246_TestTool.ViewModels
             }
             else
             {
-                if (string.IsNullOrEmpty(SelectedPort)) return;
+                if (string.IsNullOrEmpty(SelectedPort))
+                {
+                    System.Windows.MessageBox.Show("请先选择一个串口端口！");
+                    AddLog("[警告] 试图打开串口，但未选择端口号");
+                    return;
+                }
                 bool success = _serialService.Open(SelectedPort, BaudRate);
                 IsConnected = success;
             }
