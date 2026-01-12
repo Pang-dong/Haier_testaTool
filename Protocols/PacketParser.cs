@@ -33,7 +33,7 @@ namespace Haier_E246_TestTool.Protocols
 
                 byte[] packetBytes = _buffer.GetRange(0, totalPacketLen).ToArray();
                 ushort receivedCrc = (ushort)(packetBytes[2] | (packetBytes[3] << 8));
-                ushort calcCrc = Crc16.ComputeCheckrecive(packetBytes, 4, 1 + 2 + dataLen);
+                ushort calcCrc = Crc16.ComputeChecksum(packetBytes, 4, 1 + 2 + dataLen);
 
                 if (receivedCrc == calcCrc)
                 {
