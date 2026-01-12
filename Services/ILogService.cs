@@ -10,7 +10,7 @@ namespace Haier_E246_TestTool.Services
 
     public interface ILogService
     {
-        void WriteLog(string message, LogType type = LogType.Info);
+        void WriteLog(string message, LogType type = LogType.Info, bool saveToFile = true);
         event Action<string, LogType> OnNewLog; // 用于通知UI更新
     }
 }

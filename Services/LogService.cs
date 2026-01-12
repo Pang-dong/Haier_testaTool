@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Haier_E246_TestTool.Services
 {
@@ -18,23 +14,28 @@ namespace Haier_E246_TestTool.Services
             if (!Directory.Exists(_logPath)) Directory.CreateDirectory(_logPath);
         }
 
-        public void WriteLog(string message, LogType type)
+        // 实现接口，加入 saveToFile 参数
+        public void WriteLog(string message, LogType type, bool saveToFile)
         {
             string timeStr = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
             string formattedMsg = $"[{timeStr}] [{type}] {message}";
 
-            // 1. 触发事件通知UI (UI层需要自己处理跨线程)
+            // 1. 永远通知 UI 显示（界面日志要全）
             OnNewLog?.Invoke(formattedMsg, type);
 
-            // 2. 写入本地文件 (加锁保证多线程安全)
-            lock (_lockObj)
+            // 2. 只有当要求保存时，才写入文件（文件日志要精简）
+            if (saveToFile)
             {
-                try
+                lock (_lockObj)
                 {
-                    string fileName = Path.Combine(_logPath, $"{DateTime.Now:yyyyMMdd}.log");
-                    File.AppendAllText(fileName, formattedMsg + Environment.NewLine);
+                    try
+                    {
+                        // 按天生成文件名
+                        string fileName = Path.Combine(_logPath, $"{DateTime.Now:yyyyMMdd}.log");
+                        File.AppendAllText(fileName, formattedMsg + Environment.NewLine);
+                    }
+                    catch { /* 忽略占用错误 */ }
                 }
-                catch { /* 忽略文件占用错误或处理 */ }
             }
         }
     }

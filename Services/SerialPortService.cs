@@ -67,7 +67,7 @@ namespace Haier_E246_TestTool.Services
             try
             {
                 _serialPort.Write(data, 0, data.Length);
-                _logService.WriteLog(BitConverter.ToString(data), LogType.Tx);
+                _logService.WriteLog(BitConverter.ToString(data), LogType.Tx, saveToFile: false);
             }
             catch (Exception ex)
             {
@@ -84,7 +84,7 @@ namespace Haier_E246_TestTool.Services
                 _serialPort.Read(buffer, 0, bytesToRead);
 
                 // 记录原始日志
-                _logService.WriteLog(BitConverter.ToString(buffer), LogType.Rx);
+                _logService.WriteLog(BitConverter.ToString(buffer), LogType.Rx, saveToFile: false);
 
                 // 触发业务层事件
                 DataReceived?.Invoke(buffer);
