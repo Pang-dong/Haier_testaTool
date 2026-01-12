@@ -47,9 +47,11 @@ namespace Haier_E246_TestTool.Protocols
             }
             return crc;
         }
+        // 替换 Crc16.cs 中的 ComputeCheckrecive 方法
         public static ushort ComputeCheckrecive(byte[] bytes, int offset, int count)
         {
-            ushort crc = 0xFFFF;
+            //ushort crc = 0xFFFF; // Modbus 初始值
+            ushort crc = 0x0000;
             for (int i = 0; i < count; ++i)
             {
                 byte index = (byte)(crc ^ bytes[offset + i]);

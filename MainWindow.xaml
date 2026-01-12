@@ -46,7 +46,7 @@
 
                 <Button Content="进入产测模式" Command="{Binding SendCommandCommand}" CommandParameter="Cmd1" Margin="0,5" Height="35"/>
                 <Button Content="读取ID"   Command="{Binding SendCommandCommand}" CommandParameter="Cmd2" Margin="0,5" Height="35"/>
-                <Button Content="功能测试" Command="{Binding SendCommandCommand}" CommandParameter="Cmd3" Margin="0,5" Height="35"/>
+                <Button Content="版本号" Command="{Binding SendCommandCommand}" CommandParameter="Cmd3" Margin="0,5" Height="35"/>
                 <Button Content="设备复位" Command="{Binding SendCommandCommand}" CommandParameter="Cmd4" Margin="0,5" Height="35"/>
 
                 <Separator Margin="0,20"/>

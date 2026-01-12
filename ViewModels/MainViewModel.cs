@@ -7,6 +7,7 @@ using Haier_E246_TestTool.Protocols;
 using System;
 using Haier_E246_TestTool.Models;
 using System.Windows;
+using System.Text;
 
 namespace Haier_E246_TestTool.ViewModels
 {
@@ -126,7 +127,6 @@ namespace Haier_E246_TestTool.ViewModels
                             string mac = BitConverter.ToString(packet.Payload).Replace("-", ":");
                             AddLog($"[响应] MAC地址: {mac}");
                             break;
-
                         //case 0x03: // USB 状态
                         //    if (packet.Payload.Length > 0)
                         //    {
@@ -135,10 +135,9 @@ namespace Haier_E246_TestTool.ViewModels
                         //        AddLog($"[响应] USB状态: {statusStr} (Code: {status})");
                         //    }
                         //    break;
-
-                        case 0x05: // Cmd5 响应
-                            string payloadHex = BitConverter.ToString(packet.Payload);
-                            AddLog($"[响应] Cmd5返回: {payloadHex}");
+                        case 0x02: // Cmd5 响应
+                            string payloadHex = Encoding.ASCII.GetString(packet.Payload);
+                            AddLog($"[响应] Cmd2返回: {payloadHex}");
                             break;
 
                         default:
@@ -208,7 +207,7 @@ namespace Haier_E246_TestTool.ViewModels
                     cmdId = 0x03;
                     break;
                 case "Cmd3":
-                    //cmdId = 0x03;
+                    cmdId = 0x02;
                     break;
                 default: return;
             }
