@@ -94,18 +94,44 @@ namespace Haier_E246_TestTool.ViewModels
         /// <param name="rawData"></param>
         private void HandleDataReceived(byte[] rawData)
         {
-            // 使用解析器处理碎片数据
             var packets = _parser.ProcessChunk(rawData);
 
             foreach (var packet in packets)
             {
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
-                    AddLog($"收到命令: {packet.CommandId:X2}, 数据长度: {packet.Payload.Length}");
+                    // 记录原始响应日志
+                    // AddLog($"收到CMD: {packet.CommandId:X2}, Len: {packet.Payload.Length}");
+
                     switch (packet.CommandId)
                     {
-                        case 0x01: // 握手返回
-                            AddLog("握手成功！");
+                        case 0x01: // 固件版本
+                            // 假设版本号是字符串或Hex，这里按Hex显示，您可以根据实际情况改为 Encoding.ASCII.GetString(packet.Payload)
+                            string version = BitConverter.ToString(packet.Payload).Replace("-", ".");
+                            AddLog($"[响应] 固件版本: {version}");
+                            break;
+
+                        case 0x02: // MAC 地址
+                            string mac = BitConverter.ToString(packet.Payload).Replace("-", ":");
+                            AddLog($"[响应] MAC地址: {mac}");
+                            break;
+
+                        case 0x03: // USB 状态
+                            if (packet.Payload.Length > 0)
+                            {
+                                byte status = packet.Payload[0];
+                                string statusStr = status == 0 ? "OK" : (status == 1 ? "连接正常" : "未知状态");
+                                AddLog($"[响应] USB状态: {statusStr} (Code: {status})");
+                            }
+                            break;
+
+                        case 0x05: // Cmd5 响应
+                            string payloadHex = BitConverter.ToString(packet.Payload);
+                            AddLog($"[响应] Cmd5返回: {payloadHex}");
+                            break;
+
+                        default:
+                            AddLog($"[响应] 未知命令 {packet.CommandId:X2}, 数据: {BitConverter.ToString(packet.Payload)}");
                             break;
                     }
                 });
@@ -151,7 +177,11 @@ namespace Haier_E246_TestTool.ViewModels
         [RelayCommand]
         private void SendCommand(string commandTag)
         {
-            if (_serialService == null) return;
+            if (_serialService == null)
+            {
+                AddLog("发送失败，串口未打开");
+                return;
+            }
 
             byte cmdId = 0;
             byte[] paramsData = new byte[0];
@@ -160,18 +190,13 @@ namespace Haier_E246_TestTool.ViewModels
             {
                 case "Cmd1": // 握手
                     cmdId = 0x01;
-                    paramsData = new byte[] { 0x01 }; 
                     break;
                 case "Cmd2": // 读取ID
                     cmdId = 0x02;
                     break;
-                case "Cmd3": // 功能测试
+                case "Cmd3":
                     cmdId = 0x03;
-                    // 假设需要传个 Int16 参数 1000
-                    short val = 1000;
-                    paramsData = BitConverter.GetBytes(val);
                     break;
-                // ... 其他命令
                 default: return;
             }
 
@@ -183,9 +208,10 @@ namespace Haier_E246_TestTool.ViewModels
 
             // 3. 发送
             _serialService.SendData(finalBytes);
+            AddLog($"[发送] Cmd_{cmdId:X2} ({commandTag})");
         }
 
-            [RelayCommand]
+        [RelayCommand]
         private void ClearLog()
         {
             UiLogs.Clear();

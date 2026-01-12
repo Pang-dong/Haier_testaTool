@@ -30,7 +30,7 @@ namespace Haier_E246_TestTool.Protocols
             {
                 // 检查 Magic Number (Little Endian: 0xA5 0x5A)
                 // 0x5AA5 -> Low byte 0xA5, High byte 0x5A
-                if (_buffer[0] != 0xA5 || _buffer[1] != 0x5A)
+                if (_buffer[0] != 0x5A || _buffer[1] != 0xA5)
                 {
                     // 头部不对，移除第一个字节，继续寻找下一个头
                     _buffer.RemoveAt(0);

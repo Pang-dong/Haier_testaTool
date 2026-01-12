@@ -74,7 +74,6 @@ namespace Haier_E246_TestTool.Services
                 _logService.WriteLog($"发送异常: {ex.Message}", LogType.Error);
             }
         }
-
         // 后台线程接收数据
         private void OnSerialDataReceived(object sender, SerialDataReceivedEventArgs e)
         {
