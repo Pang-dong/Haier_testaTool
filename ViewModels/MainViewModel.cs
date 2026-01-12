@@ -11,6 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Diagnostics;
+using Microsoft.Win32;
 
 namespace Haier_E246_TestTool.ViewModels
 {
@@ -21,7 +22,7 @@ namespace Haier_E246_TestTool.ViewModels
         private readonly object _logLock = new object();
         private readonly PacketParser _parser = new PacketParser();
         private readonly ILogService _logService;
-        private Process playVideoProcess;
+        private readonly PlayVideoHelper _videoHelper = new PlayVideoHelper();
         public AppConfig CurrentConfig { get; private set; }
 
         private ObservableCollection<string> _comPorts;
@@ -34,6 +35,22 @@ namespace Haier_E246_TestTool.ViewModels
         private TaskCompletionSource<bool> _currentStepTcs;
         private byte _waitingCmdId;
 
+        private string _vlcPath = @"C:\Program Files\VideoLAN\VLC\vlc.exe"; // 默认值
+        public string VlcPath
+        {
+            get => _vlcPath;
+            set
+            {
+                if (SetProperty(ref _vlcPath, value))
+                {
+                    // 如果你想把这个路径保存到 AppConfig，可以在这里写保存逻辑
+                    if (CurrentConfig != null)
+                    {
+                        // CurrentConfig.VlcPath = value; // 需要在 AppConfig 加这个字段
+                    }
+                }
+            }
+        }
         private bool _isAutoTesting = false;
 
         public bool IsAutoTesting
@@ -214,7 +231,7 @@ namespace Haier_E246_TestTool.ViewModels
                             break;
                         case 0x09:
                             string rtsp = Encoding.ASCII.GetString(packet.Payload);
-
+                            _videoHelper.PlayVideo(rtsp, VlcPath);
                             AddLog(rtsp);
                             break;
                         case 0x08:
@@ -227,6 +244,24 @@ namespace Haier_E246_TestTool.ViewModels
                     }
                 });
             }
+        }
+        // 4. 选择 VLC 路径的命令
+        [RelayCommand]
+        private void SelectVlcPath()
+        {
+            var openFileDialog = new OpenFileDialog()
+            {
+                Filter = "VLC player (*.exe)|*.exe",
+                Title = "请选择 vlc.exe"
+            };
+
+            var result = openFileDialog.ShowDialog();
+            if (result == true)
+            {
+                // 赋值给属性，界面 TextBox 会自动更新
+                VlcPath = openFileDialog.FileName;
+                AddLog($"[设置] VLC路径已更新: {VlcPath}");
+            }                    
         }
         [RelayCommand]
         private async Task StartAutoTest()
