@@ -105,28 +105,36 @@ namespace Haier_E246_TestTool.ViewModels
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
                     AddLog($"收到CMD: {packet.CommandId:X2}, Len: {packet.Payload.Length}");
+                    _logService.WriteLog($"接收：{BitConverter.ToString(rawData)}");
 
                     switch (packet.CommandId)
                     {
                         case 0x00: // 固件版本
-                            // 假设版本号是字符串或Hex，这里按Hex显示，您可以根据实际情况改为 Encoding.ASCII.GetString(packet.Payload)
-                            //string version = BitConverter.ToString(packet.Payload).Replace("-", ".");
-                            AddLog("进入产测成功");
+                            AddLog("收到设备握手信号(Cmd 00)，正在回复...");
+                            var handshakePacket = new DataPacket(0x00);
+
+                            // 2. 转换为字节数组
+                            byte[] sendBytes = handshakePacket.ToBytes();
+
+                            // 3. 通过串口发送回去
+                            _serialService.SendData(sendBytes);
+
+                            AddLog("已发送握手响应，进入产测模式");
                             break;
 
-                        case 0x02: // MAC 地址
+                        case 0x03: // MAC 地址
                             string mac = BitConverter.ToString(packet.Payload).Replace("-", ":");
                             AddLog($"[响应] MAC地址: {mac}");
                             break;
 
-                        case 0x03: // USB 状态
-                            if (packet.Payload.Length > 0)
-                            {
-                                byte status = packet.Payload[0];
-                                string statusStr = status == 0 ? "OK" : (status == 1 ? "连接正常" : "未知状态");
-                                AddLog($"[响应] USB状态: {statusStr} (Code: {status})");
-                            }
-                            break;
+                        //case 0x03: // USB 状态
+                        //    if (packet.Payload.Length > 0)
+                        //    {
+                        //        byte status = packet.Payload[0];
+                        //        string statusStr = status == 0 ? "OK" : (status == 1 ? "连接正常" : "未知状态");
+                        //        AddLog($"[响应] USB状态: {statusStr} (Code: {status})");
+                        //    }
+                        //    break;
 
                         case 0x05: // Cmd5 响应
                             string payloadHex = BitConverter.ToString(packet.Payload);
@@ -197,10 +205,10 @@ namespace Haier_E246_TestTool.ViewModels
                     cmdId = 0x00;
                     break;
                 case "Cmd2": // 读取ID
-                    cmdId = 0x02;
+                    cmdId = 0x03;
                     break;
                 case "Cmd3":
-                    cmdId = 0x03;
+                    //cmdId = 0x03;
                     break;
                 default: return;
             }

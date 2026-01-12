@@ -57,8 +57,9 @@ namespace Haier_E246_TestTool.Protocols
             fullPacket[offset++] = (byte)(MagicNumber & 0xFF);
 
             // CRC (2 bytes, Little Endian)
-            fullPacket[offset++] = (byte)((crc >> 8) & 0xFF); // High Byte
             fullPacket[offset++] = (byte)(crc & 0xFF);        // Low Byte
+            fullPacket[offset++] = (byte)((crc >> 8) & 0xFF); // High Byte
+            
 
             // Body
             Array.Copy(bodyBytes, 0, fullPacket, offset, bodyBytes.Length);

@@ -18,17 +18,13 @@ namespace Haier_E246_TestTool.Protocols
 
             while (_buffer.Count >= MinPacketSize)
             {
-                // 1. 【修正】检查 Magic Number (Big Endian: 0x5AA5)
-                // 大端序：先收到 0x5A (High)，后收到 0xA5 (Low)
+                // 1. 检查 Magic Number (固定 0x5AA5)
                 if (_buffer[0] != 0x5A || _buffer[1] != 0xA5)
                 {
-                    _buffer.RemoveAt(0); // 头不对，滑窗
+                    _buffer.RemoveAt(0);
                     continue;
                 }
-
-                // 2. 【修正】解析长度 (Length) 为大端序
-                // Index 5 是高位(High), Index 6 是低位(Low)
-                ushort dataLen = (ushort)((_buffer[5] << 8) | _buffer[6]);
+                ushort dataLen = (ushort)(_buffer[5] | (_buffer[6] << 8));
 
                 int totalPacketLen = MinPacketSize + dataLen;
 
@@ -36,14 +32,8 @@ namespace Haier_E246_TestTool.Protocols
                 if (_buffer.Count < totalPacketLen) break;
 
                 byte[] packetBytes = _buffer.GetRange(0, totalPacketLen).ToArray();
-
-                // 3. 【修正】解析接收到的 CRC 为大端序
-                // Index 2 是高位(High), Index 3 是低位(Low)
-                ushort receivedCrc = (ushort)((packetBytes[2] << 8) | packetBytes[3]);
-
-                // 4. 计算 CRC (范围: Cmd + Len + Payload)
-                // 从 Index 4 开始，长度 = 1(Cmd) + 2(Len) + dataLen
-                ushort calcCrc = Crc16.ComputeChecksum(packetBytes, 4, 1 + 2 + dataLen);
+                ushort receivedCrc = (ushort)(packetBytes[2] | (packetBytes[3] << 8));
+                ushort calcCrc = Crc16.ComputeCheckrecive(packetBytes, 4, 1 + 2 + dataLen);
 
                 if (receivedCrc == calcCrc)
                 {
@@ -51,7 +41,6 @@ namespace Haier_E246_TestTool.Protocols
                     byte[] payload = new byte[dataLen];
                     if (dataLen > 0)
                     {
-                        // Payload 从 Index 7 开始
                         Array.Copy(packetBytes, 7, payload, 0, dataLen);
                     }
 
@@ -60,8 +49,8 @@ namespace Haier_E246_TestTool.Protocols
                 }
                 else
                 {
-                    // CRC 失败，移除头，继续寻找
-                    // Console.WriteLine($"CRC Error: Recv {receivedCrc:X4} != Calc {calcCrc:X4}");
+                    // CRC 失败，移除头字节继续滑动窗口（避免丢弃整个包，因为可能只是头误判）
+                    // 也可以选择 _buffer.RemoveRange(0, 2); 稍微激进一点
                     _buffer.RemoveAt(0);
                 }
             }

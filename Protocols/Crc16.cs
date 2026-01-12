@@ -47,5 +47,15 @@ namespace Haier_E246_TestTool.Protocols
             }
             return crc;
         }
+        public static ushort ComputeCheckrecive(byte[] bytes, int offset, int count)
+        {
+            ushort crc = 0xFFFF;
+            for (int i = 0; i < count; ++i)
+            {
+                byte index = (byte)(crc ^ bytes[offset + i]);
+                crc = (ushort)((crc >> 8) ^ Table[index]);
+            }
+            return crc;
+        }
     }
 }
