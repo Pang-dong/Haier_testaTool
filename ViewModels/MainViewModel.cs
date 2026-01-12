@@ -8,6 +8,9 @@ using System;
 using Haier_E246_TestTool.Models;
 using System.Windows;
 using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Diagnostics;
 
 namespace Haier_E246_TestTool.ViewModels
 {
@@ -18,6 +21,7 @@ namespace Haier_E246_TestTool.ViewModels
         private readonly object _logLock = new object();
         private readonly PacketParser _parser = new PacketParser();
         private readonly ILogService _logService;
+        private Process playVideoProcess;
         public AppConfig CurrentConfig { get; private set; }
 
         private ObservableCollection<string> _comPorts;
@@ -25,6 +29,81 @@ namespace Haier_E246_TestTool.ViewModels
         {
             get => _comPorts;
             set => SetProperty(ref _comPorts, value);
+        }
+        // --- 自动测试相关的 Task 控制 ---
+        private TaskCompletionSource<bool> _currentStepTcs;
+        private byte _waitingCmdId;
+
+        private bool _isAutoTesting = false;
+
+        public bool IsAutoTesting
+        {
+            get => _isAutoTesting;
+            set
+            {
+                // SetProperty 是 ObservableObject 提供的基础方法
+                // 它会自动处理 _isAutoTesting = value 和 OnPropertyChanged(nameof(IsAutoTesting))
+                if (SetProperty(ref _isAutoTesting, value))
+                {
+                    // 【关键点】手动通知界面：IsNotAutoTesting 也变了！
+                    // 这样你的按钮 IsEnabled 状态才会刷新
+                    OnPropertyChanged(nameof(IsNotAutoTesting));
+                }
+            }
+        }
+
+        // 这个属性依赖于 IsAutoTesting，用于给按钮绑定 IsEnabled
+        public bool IsNotAutoTesting => !IsAutoTesting;
+
+        // 1. 设备信息属性 (手动实现)
+        private string _deviceMac = "等待获取...";
+        public string DeviceMac
+        {
+            get => _deviceMac;
+            set => SetProperty(ref _deviceMac, value);
+        }
+
+        private string _deviceVersion = "等待获取...";
+        public string DeviceVersion
+        {
+            get => _deviceVersion;
+            set => SetProperty(ref _deviceVersion, value);
+        }
+
+        // 2. 按钮颜色属性 (手动实现)
+        // 需要引用 using System.Windows.Media;
+        private SolidColorBrush _cmd1Brush = new SolidColorBrush(Colors.White);
+        public SolidColorBrush Cmd1Brush
+        {
+            get => _cmd1Brush;
+            set => SetProperty(ref _cmd1Brush, value);
+        }
+
+        private SolidColorBrush _cmd2Brush = new SolidColorBrush(Colors.White);
+        public SolidColorBrush Cmd2Brush
+        {
+            get => _cmd2Brush;
+            set => SetProperty(ref _cmd2Brush, value);
+        }
+
+        private SolidColorBrush _cmd3Brush = new SolidColorBrush(Colors.White);
+        public SolidColorBrush Cmd3Brush
+        {
+            get => _cmd3Brush;
+            set => SetProperty(ref _cmd3Brush, value);
+        }
+
+        private SolidColorBrush _cmd4Brush = new SolidColorBrush(Colors.White);
+        public SolidColorBrush Cmd4Brush
+        {
+            get => _cmd4Brush;
+            set => SetProperty(ref _cmd4Brush, value);
+        }
+        private SolidColorBrush _cmd5Brush = new SolidColorBrush(Colors.White);
+        public SolidColorBrush Cmd5Brush
+        {
+            get => _cmd5Brush;
+            set => SetProperty(ref _cmd5Brush, value);
         }
 
         private string _selectedPort;
@@ -108,43 +187,127 @@ namespace Haier_E246_TestTool.ViewModels
                     AddLog($"收到CMD: {packet.CommandId:X2}, Len: {packet.Payload.Length}");
                     _logService.WriteLog($"接收：{BitConverter.ToString(rawData)}");
 
+                    // 如果正在自动测试，且收到了等待的指令，通知 Task 继续
+                    if (IsAutoTesting && _currentStepTcs != null && packet.CommandId == _waitingCmdId)
+                    {
+                        _currentStepTcs.TrySetResult(true);
+                    }
+
                     switch (packet.CommandId)
                     {
-                        case 0x00: // 固件版本
-                            AddLog("收到设备握手信号(Cmd 00)，正在回复...");
+                        case 0x00:
                             var handshakePacket = new DataPacket(0x00);
-
-                            // 2. 转换为字节数组
-                            byte[] sendBytes = handshakePacket.ToBytes();
-
-                            // 3. 通过串口发送回去
-                            _serialService.SendData(sendBytes);
-
-                            AddLog("已发送握手响应，进入产测模式");
+                            _serialService.SendData(handshakePacket.ToBytes());
+                            AddLog("已发送握手响应");
                             break;
 
                         case 0x03: // MAC 地址
                             string mac = BitConverter.ToString(packet.Payload).Replace("-", ":");
+                            DeviceMac = mac; // 更新界面显示
                             AddLog($"[响应] MAC地址: {mac}");
                             break;
-                        //case 0x03: // USB 状态
-                        //    if (packet.Payload.Length > 0)
-                        //    {
-                        //        byte status = packet.Payload[0];
-                        //        string statusStr = status == 0 ? "OK" : (status == 1 ? "连接正常" : "未知状态");
-                        //        AddLog($"[响应] USB状态: {statusStr} (Code: {status})");
-                        //    }
-                        //    break;
-                        case 0x02: // Cmd5 响应
-                            string payloadHex = Encoding.ASCII.GetString(packet.Payload);
-                            AddLog($"[响应] Cmd2返回: {payloadHex}");
-                            break;
 
+                        case 0x02: // Cmd5 响应
+                            string levver = Encoding.ASCII.GetString(packet.Payload);
+                            DeviceVersion = levver;
+                            AddLog($"[响应] Cmd5返回: {levver}");
+                            break;
+                        case 0x09:
+                            string rtsp = Encoding.ASCII.GetString(packet.Payload);
+
+                            AddLog(rtsp);
+                            break;
+                        case 0x08:
+                            string apip = Encoding.ASCII.GetString(packet.Payload);
+                            AddLog(apip);
+                            break;
                         default:
-                            AddLog($"[响应] 未知命令 {packet.CommandId:X2}, 数据: {BitConverter.ToString(packet.Payload)}");
+                            AddLog($"[响应] 未知命令 {packet.CommandId:X2}");
                             break;
                     }
                 });
+            }
+        }
+        [RelayCommand]
+        private async Task StartAutoTest()
+        {
+            if (!_serialService.IsOpen()) // 假设 SerialPortService 有 IsOpen 方法或属性
+            {
+                AddLog("请先打开串口！");
+                return;
+            }
+
+            IsAutoTesting = true;
+            AddLog("=== 开始自动测试 ===");
+            var currentResult = new TestResult();
+
+            // 重置颜色和显示
+            Cmd1Brush = new SolidColorBrush(Colors.White);
+            Cmd2Brush = new SolidColorBrush(Colors.White);
+            Cmd3Brush = new SolidColorBrush(Colors.White);
+            Cmd4Brush = new SolidColorBrush(Colors.White);
+            DeviceMac = "获取中...";
+            DeviceVersion = "获取中...";
+
+            try
+            {
+                if (await RunTestStep(0x03, "Cmd2"))
+                {
+                    Cmd2Brush = new SolidColorBrush(Colors.LightGreen);
+                    currentResult.Test_ReadMac = 1;
+                }
+                else
+                {
+                    Cmd2Brush = new SolidColorBrush(Colors.Red);
+                    currentResult.Test_ReadMac = 0;
+                }
+
+                await Task.Delay(500);
+
+                if (await RunTestStep(0x02, "Cmd3"))
+                {
+                    Cmd3Brush = new SolidColorBrush(Colors.LightGreen);
+                    currentResult.Test_Handshake = 1;
+                }
+                else
+                {
+                    Cmd3Brush = new SolidColorBrush(Colors.Red);
+                    currentResult.Test_Handshake = 0;
+                }
+
+                AddLog("=== 自动测试结束 ===");
+            }
+            finally
+            {
+                IsAutoTesting = false;
+                _currentStepTcs = null;
+            }
+        }
+        /// <summary>
+        /// 执行单个测试步骤
+        /// </summary>
+        /// <param name="targetCmdId">发送和等待接收的命令ID</param>
+        /// <param name="btnTag">用于复用 SendCommand 逻辑的 tag</param>
+        /// <returns>是否成功</returns>
+        private async Task<bool> RunTestStep(byte targetCmdId, string btnTag)
+        {
+            _waitingCmdId = targetCmdId;
+            _currentStepTcs = new TaskCompletionSource<bool>();
+
+            // 调用现有的发送逻辑
+            SendCommand(btnTag);
+
+            // 等待回复 或 2秒超时
+            var completedTask = await Task.WhenAny(_currentStepTcs.Task, Task.Delay(2000));
+
+            if (completedTask == _currentStepTcs.Task)
+            {
+                return true; // 收到回复
+            }
+            else
+            {
+                AddLog($"[超时] {btnTag} 未收到回复");
+                return false; // 超时
             }
         }
 
@@ -173,54 +336,50 @@ namespace Haier_E246_TestTool.ViewModels
 
             if (IsConnected)
             {
+                // 如果当前是连接状态，点击后执行关闭
                 _serialService.Close();
                 IsConnected = false;
+                AddLog("[信息] 串口已关闭");
+                return; 
             }
+            // 如果当前是关闭状态，执行打开逻辑
             if (string.IsNullOrEmpty(SelectedPort))
             {
                 System.Windows.MessageBox.Show("请先选择一个串口端口！");
                 AddLog("[警告] 试图打开串口，但未选择端口号");
                 return;
             }
+
             bool success = _serialService.Open(SelectedPort, BaudRate);
             IsConnected = success;
+
+            if (success)
+            {
+                AddLog($"[信息] 串口 {SelectedPort} 打开成功");
+            }
         }
 
         [RelayCommand]
         private void SendCommand(string commandTag)
         {
-            if (_serialService == null)
-            {
-                AddLog("发送失败，串口未打开");
-                return;
-            }
+            if (!IsConnected) return;
 
             byte cmdId = 0;
             byte[] paramsData = new byte[0];
 
             switch (commandTag)
             {
-                case "Cmd1": // 握手
-                    cmdId = 0x00;
-                    break;
-                case "Cmd2": // 读取ID
-                    cmdId = 0x03;
-                    break;
-                case "Cmd3":
-                    cmdId = 0x02;
-                    break;
+                case "Cmd1": cmdId = 0x00; break;
+                case "Cmd2": cmdId = 0x03; break;
+                case "Cmd3": cmdId = 0x02; break;
+                case "Cmd4": cmdId = 0x09;break;
+                case "Cmd5": cmdId = 0x08; break;
                 default: return;
             }
 
-            // 1. 创建包
             var packet = new DataPacket(cmdId, paramsData);
-
-            // 2. 序列化成字节数组
-            byte[] finalBytes = packet.ToBytes();
-
-            // 3. 发送
-            _serialService.SendData(finalBytes);
-            _logService.WriteLog($"[发送] Cmd_{cmdId:X2}{BitConverter.ToString(finalBytes)}");
+            _serialService.SendData(packet.ToBytes());
+            _logService.WriteLog($"[发送] Cmd_{cmdId:X2}");
         }
 
         [RelayCommand]

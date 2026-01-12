@@ -45,6 +45,10 @@ namespace Haier_E246_TestTool.Services
                 return false;
             }
         }
+        public bool IsOpen()
+        {
+            return _serialPort != null && _serialPort.IsOpen;
+        }
 
         public void Close()
         {
