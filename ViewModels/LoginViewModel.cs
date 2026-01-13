@@ -33,6 +33,12 @@ namespace Haier_E246_TestTool.ViewModels
             get => _selectedStationType;
             set => SetProperty(ref _selectedStationType, value);
         }
+        private bool _isRememberMe;
+        public bool IsRememberMe
+        {
+            get => _isRememberMe;
+            set => SetProperty(ref _isRememberMe, value);
+        }
 
         private string _userName;
         public string UserName
@@ -75,6 +81,7 @@ namespace Haier_E246_TestTool.ViewModels
              var configService = App.ConfigService;
             // 读取上次记录
             UserName = _config.LastUser;
+            IsRememberMe = _config.IsRememberMe;
             SelectedStationType = string.IsNullOrEmpty(_config.LastStationType) ? "测试工站" : _config.LastStationType;
             IsMesMode = false; // 默认调试模式
         }
