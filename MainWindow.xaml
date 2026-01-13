@@ -42,13 +42,18 @@
                 <GroupBox Header="设备信息" Margin="0,20,0,0" Padding="5">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,5">
-                            <Label Content="版本：" Width="60" HorizontalContentAlignment="Right"/>
-                            <TextBox Text="{Binding DeviceVersion}" Width="180" IsReadOnly="True" VerticalContentAlignment="Center"/>
+                            <Label Content="WIFI版本：" Width="60" HorizontalContentAlignment="Right"/>
+                            <TextBox Text="{Binding WiFiVersion}" Width="180" IsReadOnly="True" VerticalContentAlignment="Center"/>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
                             <Label Content="MAC：" Width="60" HorizontalContentAlignment="Right"/>
                             <TextBox Text="{Binding DeviceMac}" Width="180" IsReadOnly="True" VerticalContentAlignment="Center"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,5">
+                            <Label Content="Camera版本：" Width="60" HorizontalContentAlignment="Right" FontSize="9 "/>
+                            <TextBox Text="{Binding CameraVersion}" Width="180" IsReadOnly="True" VerticalContentAlignment="Center"/>
                         </StackPanel>
                     </StackPanel>
                 </GroupBox>
@@ -81,7 +86,7 @@
             <StackPanel>
                 <TextBlock Text="测试命令" FontWeight="Bold" FontSize="16" Margin="0,0,0,15"/>
 
-                <Button Content="读取ID"   
+                <Button Content="读取设备MAC"   
                         Command="{Binding SendCommandCommand}" CommandParameter="Cmd2" 
                         Background="{Binding Cmd2Brush}"
                         IsEnabled="{Binding IsNotAutoTesting}"
@@ -100,6 +105,11 @@
                 <Button Content="打开AP模式" 
                         Command="{Binding SendCommandCommand}" CommandParameter="Cmd5" 
                         Background="{Binding Cmd5Brush}"
+                        IsEnabled="{Binding IsNotAutoTesting}"
+                        Margin="0,5" Height="35"/>
+                <Button Content="获取Camera版本" 
+                        Command="{Binding SendCommandCommand}" CommandParameter="Cmd6" 
+                        Background="{Binding Cmd6Brush}"
                         IsEnabled="{Binding IsNotAutoTesting}"
                         Margin="0,5" Height="35"/>
 

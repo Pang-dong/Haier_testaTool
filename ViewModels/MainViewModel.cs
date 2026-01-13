@@ -80,11 +80,17 @@ namespace Haier_E246_TestTool.ViewModels
             set => SetProperty(ref _deviceMac, value);
         }
 
-        private string _deviceVersion = "等待获取...";
-        public string DeviceVersion
+        private string _wiFiVersion = "等待获取...";
+        public string WiFiVersion
         {
-            get => _deviceVersion;
-            set => SetProperty(ref _deviceVersion, value);
+            get => _wiFiVersion;
+            set => SetProperty(ref _wiFiVersion, value);
+        }
+        private string _cameraVersion = "等待获取...";
+        public string CameraVersion
+        {
+            get => _cameraVersion;
+            set => SetProperty(ref _cameraVersion, value);
         }
 
         // 2. 按钮颜色属性 (手动实现)
@@ -121,6 +127,12 @@ namespace Haier_E246_TestTool.ViewModels
         {
             get => _cmd5Brush;
             set => SetProperty(ref _cmd5Brush, value);
+        }
+        private SolidColorBrush _cmd6Brush = new SolidColorBrush(Colors.White);
+        public SolidColorBrush Cmd6Brush
+        {
+            get => _cmd6Brush;
+            set => SetProperty(ref _cmd6Brush, value);
         }
 
         private string _selectedPort;
@@ -226,13 +238,18 @@ namespace Haier_E246_TestTool.ViewModels
 
                         case 0x02: // Cmd5 响应
                             string levver = Encoding.ASCII.GetString(packet.Payload);
-                            DeviceVersion = levver;
-                            AddLog($"[响应] Cmd5返回: {levver}");
+                            WiFiVersion = levver;
+                            AddLog($"[响应] Wifi版本: {levver}");
                             break;
                         case 0x09:
                             string rtsp = Encoding.ASCII.GetString(packet.Payload);
                             _videoHelper.PlayVideo(rtsp, VlcPath);
                             AddLog(rtsp);
+                            break;
+                        case 0x01:
+                            string devicelevver = Encoding.ASCII.GetString(packet.Payload);
+                            CameraVersion = devicelevver;
+                            AddLog($"[响应] Camera版本: {devicelevver}");
                             break;
                         case 0x08:
                             string apip = Encoding.ASCII.GetString(packet.Payload);
@@ -282,7 +299,7 @@ namespace Haier_E246_TestTool.ViewModels
             Cmd3Brush = new SolidColorBrush(Colors.White);
             Cmd4Brush = new SolidColorBrush(Colors.White);
             DeviceMac = "获取中...";
-            DeviceVersion = "获取中...";
+            WiFiVersion = "获取中...";
 
             try
             {
@@ -409,6 +426,7 @@ namespace Haier_E246_TestTool.ViewModels
                 case "Cmd3": cmdId = 0x02; break;
                 case "Cmd4": cmdId = 0x09;break;
                 case "Cmd5": cmdId = 0x08; break;
+                case "Cmd6": cmdId = 0x01; break;
                 default: return;
             }
 
