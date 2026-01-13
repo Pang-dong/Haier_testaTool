@@ -18,6 +18,10 @@ namespace Haier_E246_TestTool
         {
             base.OnStartup(e);
 
+
+            var loginWin = new
+             LoginWindow();
+            loginWin.Show();
             // 1. 初始化基础服务
             _logService = new LogService();
             _configService = new ConfigService(_logService);

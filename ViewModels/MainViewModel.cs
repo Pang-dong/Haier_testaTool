@@ -167,8 +167,8 @@ namespace Haier_E246_TestTool.ViewModels
             RefreshPorts();
             _serialService.DataReceived += HandleDataReceived;
             TestCommands.Add(new TestCommandItem("获取MAC",0x03));
-            TestCommands.Add(new TestCommandItem("获取WiFi版本", 0x01));
-            TestCommands.Add(new TestCommandItem("获取Camera版本", 0x02));
+            TestCommands.Add(new TestCommandItem("获取WiFi版本", 0x02));
+            TestCommands.Add(new TestCommandItem("获取Camera版本", 0x01));
             TestCommands.Add(new TestCommandItem("打开AP模式", 0x08));
             TestCommands.Add(new TestCommandItem("打开视频", 0x09));
         }
@@ -301,7 +301,7 @@ namespace Haier_E246_TestTool.ViewModels
                             AddLog($"[响应] MAC地址: {mac}");
                             break;
 
-                        case 0x02: // Cmd5 响应
+                        case 0x02: 
                             string levver = Encoding.ASCII.GetString(packet.Payload);
                             WiFiVersion = levver;
                             AddLog($"[响应] Wifi版本: {levver}");
@@ -340,37 +340,9 @@ namespace Haier_E246_TestTool.ViewModels
             var result = openFileDialog.ShowDialog();
             if (result == true)
             {
-                // 赋值给属性，界面 TextBox 会自动更新
                 VlcPath = openFileDialog.FileName;
                 AddLog($"[设置] VLC路径已更新: {VlcPath}");
             }                    
-        }
-        /// <summary>
-        /// 执行单个测试步骤
-        /// </summary>
-        /// <param name="targetCmdId">发送和等待接收的命令ID</param>
-        /// <param name="btnTag">用于复用 SendCommand 逻辑的 tag</param>
-        /// <returns>是否成功</returns>
-        private async Task<bool> RunTestStep(byte targetCmdId, string btnTag)
-        {
-            _waitingCmdId = targetCmdId;
-            _currentStepTcs = new TaskCompletionSource<bool>();
-
-            // 调用现有的发送逻辑
-            SendCommand(btnTag);
-
-            // 等待回复 或 2秒超时
-            var completedTask = await Task.WhenAny(_currentStepTcs.Task, Task.Delay(2000));
-
-            if (completedTask == _currentStepTcs.Task)
-            {
-                return true; // 收到回复
-            }
-            else
-            {
-                AddLog($"[超时] {btnTag} 未收到回复");
-                return false; // 超时
-            }
         }
 
         // 添加日志的方法
@@ -402,6 +374,13 @@ namespace Haier_E246_TestTool.ViewModels
                 _serialService.Close();
                 IsConnected = false;
                 IsHandshaked = false;
+                if (TestCommands != null)
+                {
+                    foreach (var item in TestCommands)
+                    {
+                        item.ResetColor(); // 调用 TestCommandItem 里的重置方法
+                    }
+                }
                 AddLog("[信息] 串口已关闭");
                 return; 
             }

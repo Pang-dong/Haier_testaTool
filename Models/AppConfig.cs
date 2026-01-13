@@ -22,7 +22,15 @@ namespace Haier_E246_TestTool.Models
         public string PortName { get; set; } = "";
 
         public int BaudRate { get; set; } = 9600;
-        public string StationName { get; set; } = "Station-001";
+        public string StationName { get; set; } = "";
+        public string BurnPort { get; set; } = "COM3";
+        public string BurnBaud { get; set; } = "921600";
+        public string BkLoaderPath { get; set; } = @"app\bk_loader.exe";
+        public string BurnSourceDir { get; set; } = @"C:\BurnFiles\Pending"; // 待烧录路径
+        public string BurnTargetDir { get; set; } = @"C:\BurnFiles\Burned";  // 已烧录路径
+        public string LastUser { get; set; } = ""
+;
+        public string LastStationType { get; set; } = "测试工站"; // 记录上次选的工站
 
     }
 }

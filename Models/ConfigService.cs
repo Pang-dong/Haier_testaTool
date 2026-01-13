@@ -17,7 +17,7 @@ namespace Haier_E246_TestTool.Services
             _configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AppConfig.json");
         }
 
-        public AppConfig Load()
+        public  AppConfig Load()
         {
             if (!File.Exists(_configPath))
             {
@@ -43,7 +43,7 @@ namespace Haier_E246_TestTool.Services
             }
         }
 
-        public void Save(AppConfig config)
+        public  void Save(AppConfig config)
         {
             try
             {

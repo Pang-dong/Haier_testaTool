@@ -60,7 +60,13 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="BurnWindow.xaml.cs">
+      <DependentUpon>BurnWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="LH\ValueConverters.cs" />
+    <Compile Include="LoginWindow.xaml.cs">
+      <DependentUpon>LoginWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Models\AppConfig.cs" />
     <Compile Include="Models\ConfigService.cs" />
     <Compile Include="Models\TestCommandItem.cs" />
@@ -72,7 +78,17 @@
     <Compile Include="Services\ILogService.cs" />
     <Compile Include="Services\LogService.cs" />
     <Compile Include="Services\SerialPortService.cs" />
+    <Compile Include="ViewModels\BurnViewModel.cs" />
+    <Compile Include="ViewModels\LoginViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
+    <Page Include="BurnWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="LoginWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
