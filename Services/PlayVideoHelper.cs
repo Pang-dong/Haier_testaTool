@@ -10,7 +10,6 @@ namespace Haier_E246_TestTool.Services // 注意命名空间调整
     {
         private Process _playerProcess;
 
-        // Windows API 用于窗口控制 (可选，如果只是播放可以不需要，但你的原代码里有)
         [DllImport("user32.dll", EntryPoint = "FindWindow")]
         private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 

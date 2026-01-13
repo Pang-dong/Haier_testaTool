@@ -161,6 +161,12 @@ namespace Haier_E246_TestTool.ViewModels
                 }
             }
         }
+        private bool _isHandshaked = false;
+        public bool IsHandshaked
+        {
+            get => _isHandshaked;
+            set => SetProperty(ref _isHandshaked, value);
+        }
 
         private bool _isConnected;
         public bool IsConnected
@@ -225,6 +231,7 @@ namespace Haier_E246_TestTool.ViewModels
                     switch (packet.CommandId)
                     {
                         case 0x00:
+                            IsHandshaked = true;
                             var handshakePacket = new DataPacket(0x00);
                             _serialService.SendData(handshakePacket.ToBytes());
                             AddLog("已发送握手响应");
@@ -391,6 +398,7 @@ namespace Haier_E246_TestTool.ViewModels
                 // 如果当前是连接状态，点击后执行关闭
                 _serialService.Close();
                 IsConnected = false;
+                IsHandshaked = false;
                 AddLog("[信息] 串口已关闭");
                 return; 
             }
@@ -404,6 +412,7 @@ namespace Haier_E246_TestTool.ViewModels
 
             bool success = _serialService.Open(SelectedPort, BaudRate);
             IsConnected = success;
+            IsHandshaked = false;
 
             if (success)
             {
@@ -414,8 +423,13 @@ namespace Haier_E246_TestTool.ViewModels
         [RelayCommand]
         private void SendCommand(string commandTag)
         {
-            if (!IsConnected) return;
-
+            if (!IsConnected) {AddLog("【错误】串口未打开"); return; };
+            if (commandTag != "Cmd1" && !IsHandshaked)
+            {
+                MessageBox.Show("请先“进入产测模式”进行握手！", "操作受限");
+                AddLog("[警告] 未握手，已拦截操作");
+                return;
+            }
             byte cmdId = 0;
             byte[] paramsData = new byte[0];
 
@@ -424,7 +438,7 @@ namespace Haier_E246_TestTool.ViewModels
                 case "Cmd1": cmdId = 0x00; break;
                 case "Cmd2": cmdId = 0x03; break;
                 case "Cmd3": cmdId = 0x02; break;
-                case "Cmd4": cmdId = 0x09;break;
+                case "Cmd4": cmdId = 0x09; break;
                 case "Cmd5": cmdId = 0x08; break;
                 case "Cmd6": cmdId = 0x01; break;
                 default: return;
