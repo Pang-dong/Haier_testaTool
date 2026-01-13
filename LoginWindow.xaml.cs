@@ -23,10 +23,13 @@ namespace Haier_E246_TestTool
         public LoginWindow()
         {
             InitializeComponent();
+
+            // 绑定 ViewModel
             var vm = new LoginViewModel();
             this.DataContext = vm;
+
+            // 绑定关闭动作
             vm.CloseAction = () => this.Close();
-            var btn = this.FindName("BtnLogin") as System.Windows.Controls.Button; // 这里的 Button 实际上在 XAML 绑定了 Command
         }
     }
 }

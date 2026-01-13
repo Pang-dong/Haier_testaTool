@@ -49,8 +49,9 @@
             <TextBlock Grid.Row="5" Text="{Binding ErrorMessage}" Foreground="Red" 
                        TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,0,0,10"/>
 
-            <Button Grid.Row="6" Content="登 录 (Login)" 
-                    Command="{Binding LoginCommand}"
+            <Button x:Name="BtnLogin" 
+                    Content="登 录" 
+                    Command="{Binding LoginCommand}" 
                     CommandParameter="{Binding ElementName=TxtPassword}"
                     Height="45" Background="#1890FF" Foreground="White" 
                     FontSize="16" FontWeight="Bold" Cursor="Hand"

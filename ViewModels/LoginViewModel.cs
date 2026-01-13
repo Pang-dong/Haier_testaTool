@@ -2,7 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Haier_E246_TestTool.Models;
 using Haier_E246_TestTool.Services;
-using Haier_E246_TestTool.Views; // 假设你的窗口都在 Views 命名空间
+using Haier_E246_TestTool; // 假设你的窗口都在 Views 命名空间
 using System;
 using System.Collections.ObjectModel;
 using System.Web.UI.WebControls;
@@ -10,7 +10,7 @@ using System.Windows;
 
 namespace Haier_E246_TestTool.ViewModels
 {
-    public class LoginViewModel : ObservableObject
+    public partial class LoginViewModel : ObservableObject
     {
         // 窗口关闭动作 (由 View 赋值)
         public Action CloseAction { get; set; }
@@ -69,7 +69,10 @@ namespace Haier_E246_TestTool.ViewModels
         // --- 构造函数 ---
         public LoginViewModel()
         {
-            _config = ConfigService.Load();
+            _config = App.AppConfig;
+
+             // 获取服务实例
+             var configService = App.ConfigService;
             // 读取上次记录
             UserName = _config.LastUser;
             SelectedStationType = string.IsNullOrEmpty(_config.LastStationType) ? "测试工站" : _config.LastStationType;
@@ -113,7 +116,7 @@ namespace Haier_E246_TestTool.ViewModels
             // 2. 保存登录信息
             _config.LastUser = UserName;
             _config.LastStationType = SelectedStationType;
-            ConfigService.Save(_config);
+            App.ConfigService.Save(_config);
 
             // 3. 跳转逻辑
             if (SelectedStationType == "烧录工站")
