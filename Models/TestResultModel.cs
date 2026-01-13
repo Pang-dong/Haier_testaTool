@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Haier_E246_TestTool.Models
 {
-    public  class TestResult
+    public  class TestResultModel
     {
         /// <summary>
         /// 读取ID/MAC (Cmd2)

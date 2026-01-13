@@ -63,8 +63,9 @@
     <Compile Include="LH\ValueConverters.cs" />
     <Compile Include="Models\AppConfig.cs" />
     <Compile Include="Models\ConfigService.cs" />
+    <Compile Include="Models\TestCommandItem.cs" />
     <Compile Include="Services\PlayVideoHelper.cs" />
-    <Compile Include="Models\TestResult.cs" />
+    <Compile Include="Models\TestResultModel.cs" />
     <Compile Include="Protocols\Crc16.cs" />
     <Compile Include="Protocols\DataPacket.cs" />
     <Compile Include="Protocols\PacketParser.cs" />

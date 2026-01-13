@@ -86,32 +86,28 @@
             <StackPanel>
                 <TextBlock Text="测试命令" FontWeight="Bold" FontSize="16" Margin="0,0,0,15"/>
 
-                <Button Content="读取设备MAC"   
-                        Command="{Binding SendCommandCommand}" CommandParameter="Cmd2" 
-                        Background="{Binding Cmd2Brush}"
-                        IsEnabled="{Binding IsNotAutoTesting}"
-                        Margin="0,5" Height="35"/>
+                <ItemsControl ItemsSource="{Binding TestCommands}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding Name}" 
+                    Margin="0,5" 
+                    Height="35"
+                    Background="{Binding Background}"
+                    IsEnabled="{Binding DataContext.IsNotAutoTesting, RelativeSource={RelativeSource AncestorType=Window}}">
 
-                <Button Content="获取wifi版本" 
-                        Command="{Binding SendCommandCommand}" CommandParameter="Cmd3" 
-                        Background="{Binding Cmd3Brush}"
-                        IsEnabled="{Binding IsNotAutoTesting}"
-                        Margin="0,5" Height="35"/>
-                <Button Content="打开RTSP流" 
-                        Command="{Binding SendCommandCommand}" CommandParameter="Cmd4" 
-                        Background="{Binding Cmd4Brush}"
-                        IsEnabled="{Binding IsNotAutoTesting}"
-                        Margin="0,5" Height="35"/>
-                <Button Content="打开AP模式" 
-                        Command="{Binding SendCommandCommand}" CommandParameter="Cmd5" 
-                        Background="{Binding Cmd5Brush}"
-                        IsEnabled="{Binding IsNotAutoTesting}"
-                        Margin="0,5" Height="35"/>
-                <Button Content="获取Camera版本" 
-                        Command="{Binding SendCommandCommand}" CommandParameter="Cmd6" 
-                        Background="{Binding Cmd6Brush}"
-                        IsEnabled="{Binding IsNotAutoTesting}"
-                        Margin="0,5" Height="35"/>
+                                <Button.Command>
+                                    <Binding Path="DataContext.ExecuteTestCommandCommand" 
+                             RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                </Button.Command>
+
+                                <Button.CommandParameter>
+                                    <Binding Path="."/>
+                                </Button.CommandParameter>
+
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
                 <Separator Margin="0,20"/>
                 <Button Content="清空日志" Command="{Binding ClearLogCommand}" Background="#FFDDDD"/>

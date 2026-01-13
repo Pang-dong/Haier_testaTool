@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Diagnostics;
 using Microsoft.Win32;
+using System.Linq;
 
 namespace Haier_E246_TestTool.ViewModels
 {
@@ -23,6 +24,7 @@ namespace Haier_E246_TestTool.ViewModels
         private readonly PacketParser _parser = new PacketParser();
         private readonly ILogService _logService;
         private readonly PlayVideoHelper _videoHelper = new PlayVideoHelper();
+        public ObservableCollection<TestCommandItem> TestCommands { get; } = new ObservableCollection<TestCommandItem>();
         public AppConfig CurrentConfig { get; private set; }
 
         private ObservableCollection<string> _comPorts;
@@ -91,48 +93,6 @@ namespace Haier_E246_TestTool.ViewModels
         {
             get => _cameraVersion;
             set => SetProperty(ref _cameraVersion, value);
-        }
-
-        // 2. 按钮颜色属性 (手动实现)
-        // 需要引用 using System.Windows.Media;
-        private SolidColorBrush _cmd1Brush = new SolidColorBrush(Colors.White);
-        public SolidColorBrush Cmd1Brush
-        {
-            get => _cmd1Brush;
-            set => SetProperty(ref _cmd1Brush, value);
-        }
-
-        private SolidColorBrush _cmd2Brush = new SolidColorBrush(Colors.White);
-        public SolidColorBrush Cmd2Brush
-        {
-            get => _cmd2Brush;
-            set => SetProperty(ref _cmd2Brush, value);
-        }
-
-        private SolidColorBrush _cmd3Brush = new SolidColorBrush(Colors.White);
-        public SolidColorBrush Cmd3Brush
-        {
-            get => _cmd3Brush;
-            set => SetProperty(ref _cmd3Brush, value);
-        }
-
-        private SolidColorBrush _cmd4Brush = new SolidColorBrush(Colors.White);
-        public SolidColorBrush Cmd4Brush
-        {
-            get => _cmd4Brush;
-            set => SetProperty(ref _cmd4Brush, value);
-        }
-        private SolidColorBrush _cmd5Brush = new SolidColorBrush(Colors.White);
-        public SolidColorBrush Cmd5Brush
-        {
-            get => _cmd5Brush;
-            set => SetProperty(ref _cmd5Brush, value);
-        }
-        private SolidColorBrush _cmd6Brush = new SolidColorBrush(Colors.White);
-        public SolidColorBrush Cmd6Brush
-        {
-            get => _cmd6Brush;
-            set => SetProperty(ref _cmd6Brush, value);
         }
 
         private string _selectedPort;
@@ -206,6 +166,97 @@ namespace Haier_E246_TestTool.ViewModels
             BindingOperations.EnableCollectionSynchronization(UiLogs, _logLock);
             RefreshPorts();
             _serialService.DataReceived += HandleDataReceived;
+            TestCommands.Add(new TestCommandItem("获取MAC",0x03));
+            TestCommands.Add(new TestCommandItem("获取WiFi版本", 0x01));
+            TestCommands.Add(new TestCommandItem("获取Camera版本", 0x02));
+            TestCommands.Add(new TestCommandItem("打开AP模式", 0x08));
+            TestCommands.Add(new TestCommandItem("打开视频", 0x09));
+        }
+        [RelayCommand]
+        private void ExecuteTestCommand(TestCommandItem item)
+        {
+            if (item == null) return;
+            if (!IsConnected) { AddLog("串口未打开"); return; }
+
+            // 拦截逻辑：如果不是握手命令(0x00)且未握手，则拦截
+            if (item.CommandId != 0x00 && !IsHandshaked)
+            {
+                System.Windows.MessageBox.Show("请先执行握手(进入产测模式)！");
+                return;
+            }
+
+            // 发送数据
+            var packet = new DataPacket(item.CommandId);
+            _serialService.SendData(packet.ToBytes());
+            _logService.WriteLog($"[发送] {item.Name} (ID:{item.CommandId:X2})");
+        }
+        [RelayCommand]
+        private async Task StartAutoTest()
+        {
+            if (!_serialService.IsOpen()) { AddLog("请先打开串口"); return; }
+
+            IsAutoTesting = true;
+            AddLog("=== 开始自动测试 ===");
+
+            // 初始化结果记录
+            var currentResult = new TestResultModel();
+
+            // 重置所有颜色
+            foreach (var cmd in TestCommands) cmd.ResetColor();
+
+            try
+            {
+                // 【核心逻辑】遍历集合，自动执行
+                foreach (var cmd in TestCommands)
+                {
+                    // 可以跳过不需要自动测的项，比如“设备复位”
+                    if (cmd.Name == "设备复位") continue;
+
+                    AddLog($"正在执行: {cmd.Name}...");
+
+                    // 执行一步
+                    bool success = await RunTestStep(cmd.CommandId);
+
+                    if (success)
+                    {
+                        cmd.SetSuccess(); // 变绿
+                        // 记录结果 (根据ID判断是哪一项)
+                        if (cmd.CommandId == 0x00) currentResult.Test_Handshake = 1;
+                        if (cmd.CommandId == 0x03) currentResult.Test_ReadMac = 1;
+                        if (cmd.CommandId == 0x05) currentResult.Test_Function = 1;
+                    }
+                    else
+                    {
+                        cmd.SetFail(); // 变红
+                    }
+
+                    // 稍微停顿一下，让界面有反应时间
+                    await Task.Delay(500);
+                }
+
+                // 统合结果逻辑...
+                // _writeResultService.BuildFinalJson(currentResult, CurrentConfig)...
+            }
+            finally
+            {
+                IsAutoTesting = false;
+                _currentStepTcs = null;
+            }
+        }
+
+        // 辅助方法：发送并等待
+        private async Task<bool> RunTestStep(byte cmdId)
+        {
+            _waitingCmdId = cmdId;
+            _currentStepTcs = new TaskCompletionSource<bool>();
+
+            // 发送
+            var packet = new DataPacket(cmdId);
+            _serialService.SendData(packet.ToBytes());
+
+            // 等待回复 (2秒超时)
+            var completedTask = await Task.WhenAny(_currentStepTcs.Task, Task.Delay(2000));
+            return completedTask == _currentStepTcs.Task && _currentStepTcs.Task.Result;
         }
         /// <summary>
         /// 处理接收到的数据
@@ -227,7 +278,11 @@ namespace Haier_E246_TestTool.ViewModels
                     {
                         _currentStepTcs.TrySetResult(true);
                     }
-
+                    var targetBtn = TestCommands.FirstOrDefault(x => x.CommandId == packet.CommandId);
+                    if (targetBtn != null)
+                    {
+                        targetBtn.SetSuccess();
+                    }
                     switch (packet.CommandId)
                     {
                         case 0x00:
@@ -235,6 +290,9 @@ namespace Haier_E246_TestTool.ViewModels
                             var handshakePacket = new DataPacket(0x00);
                             _serialService.SendData(handshakePacket.ToBytes());
                             AddLog("已发送握手响应");
+                            handshakePacket =new DataPacket(0x03);
+                            _serialService.SendData(handshakePacket.ToBytes());
+                            AddLog("自动获取MAC地址");
                             break;
 
                         case 0x03: // MAC 地址
@@ -286,61 +344,6 @@ namespace Haier_E246_TestTool.ViewModels
                 VlcPath = openFileDialog.FileName;
                 AddLog($"[设置] VLC路径已更新: {VlcPath}");
             }                    
-        }
-        [RelayCommand]
-        private async Task StartAutoTest()
-        {
-            if (!_serialService.IsOpen()) // 假设 SerialPortService 有 IsOpen 方法或属性
-            {
-                AddLog("请先打开串口！");
-                return;
-            }
-
-            IsAutoTesting = true;
-            AddLog("=== 开始自动测试 ===");
-            var currentResult = new TestResult();
-
-            // 重置颜色和显示
-            Cmd1Brush = new SolidColorBrush(Colors.White);
-            Cmd2Brush = new SolidColorBrush(Colors.White);
-            Cmd3Brush = new SolidColorBrush(Colors.White);
-            Cmd4Brush = new SolidColorBrush(Colors.White);
-            DeviceMac = "获取中...";
-            WiFiVersion = "获取中...";
-
-            try
-            {
-                if (await RunTestStep(0x03, "Cmd2"))
-                {
-                    Cmd2Brush = new SolidColorBrush(Colors.LightGreen);
-                    currentResult.Test_ReadMac = 1;
-                }
-                else
-                {
-                    Cmd2Brush = new SolidColorBrush(Colors.Red);
-                    currentResult.Test_ReadMac = 0;
-                }
-
-                await Task.Delay(500);
-
-                if (await RunTestStep(0x02, "Cmd3"))
-                {
-                    Cmd3Brush = new SolidColorBrush(Colors.LightGreen);
-                    currentResult.Test_Handshake = 1;
-                }
-                else
-                {
-                    Cmd3Brush = new SolidColorBrush(Colors.Red);
-                    currentResult.Test_Handshake = 0;
-                }
-
-                AddLog("=== 自动测试结束 ===");
-            }
-            finally
-            {
-                IsAutoTesting = false;
-                _currentStepTcs = null;
-            }
         }
         /// <summary>
         /// 执行单个测试步骤
