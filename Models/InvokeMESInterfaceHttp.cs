@@ -29,7 +29,7 @@ namespace Haier_E246_TestTool.Services
         {
             try
             {
-                _httpClient.Timeout = TimeSpan.FromSeconds(3);
+                _httpClient.Timeout = TimeSpan.FromSeconds(5);
                 string soapBody = BuildSoapEnvelope(methodName, parameters, soapNamespace);
                 var content = new StringContent(soapBody, Encoding.UTF8, "text/xml");
                 using (var request = new HttpRequestMessage(HttpMethod.Post, url))

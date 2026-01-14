@@ -27,7 +27,7 @@ namespace Haier_E246_TestTool.ViewModels
         private readonly ILogService _logService;
         private readonly PlayVideoHelper _videoHelper = new PlayVideoHelper();
         public ObservableCollection<TestCommandItem> TestCommands { get; } = new ObservableCollection<TestCommandItem>();
-        public AppConfig CurrentConfig { get; private set; }
+        private AppConfig CurrentConfig { get; set; }
 
         private ObservableCollection<string> _comPorts;
         public ObservableCollection<string> ComPorts
@@ -76,6 +76,29 @@ namespace Haier_E246_TestTool.ViewModels
         {
             get => _sN;
             set => SetProperty(ref _sN, value);
+        }
+        // 2. 【新增】提示信息 (绑定到画布 TextBlock)
+        private string _mesMessage = "等待测试...";
+        public string MesMessage
+        {
+            get => _mesMessage;
+            set => SetProperty(ref _mesMessage, value);
+        }
+
+        // 3. 【新增】测试结果文本 (PASS / FAIL)
+        private string _resultText = "WAIT";
+        public string ResultText
+        {
+            get => _resultText;
+            set => SetProperty(ref _resultText, value);
+        }
+
+        // 4. 【新增】结果颜色 (PASS用绿，FAIL用红)
+        private Brush _resultColor = Brushes.Gray;
+        public Brush ResultColor
+        {
+            get => _resultColor;
+            set => SetProperty(ref _resultColor, value);
         }
 
         // 1. 设备信息属性 (手动实现)
@@ -173,6 +196,7 @@ namespace Haier_E246_TestTool.ViewModels
             CurrentConfig = config;
             StationName = config.StationName;
             BaudRate = config.BaudRate;
+            IsMesMode =config.IsMesMode;
             
             BindingOperations.EnableCollectionSynchronization(UiLogs, _logLock);
             RefreshPorts();
@@ -204,11 +228,26 @@ namespace Haier_E246_TestTool.ViewModels
         [RelayCommand]
         private async Task StartAutoTest()
         {
+            var inputBox = new InputBox();
+            inputBox.Title = "请扫描SN号"; 
+            if (inputBox.ShowDialog() == true)
+            {
+                SN = inputBox.Value;
+                AddLog($"[扫码] SN: {SN}");
+            }
+            else
+            {
+                AddLog("取消测试：未输入SN");
+                return;
+            }
             if (!_serialService.IsOpen()) { AddLog("请先打开串口"); return; }
 
             IsAutoTesting = true;
             AddLog("=== 开始自动测试 ===");
-
+            ResultText = "TESTING";
+            ResultColor = Brushes.Orange;
+            MesMessage = "正在执行自动测试...";
+            bool isTotalPass = true;
             // 初始化结果记录
             var currentResult = new TestResultModel();
 
@@ -220,7 +259,6 @@ namespace Haier_E246_TestTool.ViewModels
                 // 【核心逻辑】遍历集合，自动执行
                 foreach (var cmd in TestCommands)
                 {
-                    // 可以跳过不需要自动测的项，比如“设备复位”
                     if (cmd.Name == "设备复位") continue;
 
                     AddLog($"正在执行: {cmd.Name}...");
@@ -230,7 +268,7 @@ namespace Haier_E246_TestTool.ViewModels
 
                     if (success)
                     {
-                        cmd.SetSuccess(); // 变绿
+                        cmd.SetSuccess(); 
                         if (cmd.CommandId == 0x01) currentResult.Test_Camera_Version = 1;
                         if (cmd.CommandId == 0x02) currentResult.Test_WIFI_VERSION = 1;
                         if (cmd.CommandId == 0x0) currentResult.Test_ReadMac = 1;
@@ -238,34 +276,73 @@ namespace Haier_E246_TestTool.ViewModels
                     else
                     {
                         cmd.SetFail(); // 变红
+                        isTotalPass = false;
                     }
                     await Task.Delay(500);
+                }
+                if (isTotalPass)
+                {
+                    ResultText = "PASS";
+                    ResultColor = Brushes.Green;
+                    MesMessage = "本地测试通过";
+                }
+                else
+                {
+                    ResultText = "FAIL";
+                    ResultColor = Brushes.Red;
+                    MesMessage = "本地测试失败，请检查红色的测试项。";
                 }
                 string rawJson = JsonConvert.SerializeObject(currentResult);
 
                 // 2. 实例化服务并处理数据
                 var writeService = new WriteTestResultService();
 
-                string finalJson = writeService.EnrichJsonData(rawJson,CurrentConfig,"功能测试",DeviceMac,WiFiVersion, CameraVersion);
-                if (IsMesMode) 
+                string finalJson = writeService.EnrichJsonData(rawJson,CurrentConfig,"功能测试",DeviceMac,WiFiVersion, CameraVersion,SN);
+                if (IsMesMode)
                 {
-                    AddLog("上传MES功能测试工序数据");
-                    string resultInfo = Task.Run(async () =>
+                    if (isTotalPass)
                     {
-                        return await WebApiHelper.WriteTestResultAsync(finalJson);
-                    }).GetAwaiter().GetResult();
-                    OuterResponse outer = JsonConvert.DeserializeObject<OuterResponse>(resultInfo);
+                        AddLog("正在上传MES功能测试数据(请等待)...");
+                        string resultInfo = await WebApiHelper.WriteTestResultAsync(finalJson);
 
-                    BaseResult baseResult = JsonConvert.DeserializeObject<BaseResult>(outer.resultMsg);
-                    if (baseResult != null && baseResult.IsSuccess)
-                    {
-                        AddLog("MES功能测试工序数据上传成功");
+                        // 解析外层响应
+                        OuterResponse outer = JsonConvert.DeserializeObject<OuterResponse>(resultInfo);
+                        if (outer != null && !string.IsNullOrEmpty(outer.resultMsg))
+                        {
+                            BaseResult baseResult = JsonConvert.DeserializeObject<BaseResult>(outer.resultMsg);
+
+                            if (baseResult != null && baseResult.IsSuccess)
+                            {
+                                AddLog("MES上传成功");
+                                MesMessage = $"MES上传成功: {baseResult.msg}"; // 更新画布信息
+                            }
+                            else
+                            {
+                                AddLog($"MES上传失败: {baseResult?.msg}");
+                                MesMessage = $"MES上传失败: {baseResult?.msg}"; // 更新画布信息
+
+                                ResultText = "FAIL (MES)";
+                                ResultColor =Brushes.Red;
+                            }
+                        }
+                        else
+                        {
+                            AddLog("MES返回格式异常");
+                            MesMessage = "MES返回格式异常";
+                        }
                     }
                     else
                     {
-                        AddLog($"MES功能测试工序数据上传失败: {baseResult?.msg}");
+                        AddLog("本地测试失败，跳过MES上传");
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"测试过程异常: {ex.Message}");
+                ResultText = "ERROR";
+                ResultColor =Brushes.Red;
+                MesMessage = $"异常: {ex.Message}";
             }
             finally
             {
@@ -273,8 +350,6 @@ namespace Haier_E246_TestTool.ViewModels
                 _currentStepTcs = null;
             }
         }
-
-        // 辅助方法：发送并等待
         private async Task<bool> RunTestStep(byte cmdId)
         {
             _waitingCmdId = cmdId;
@@ -284,7 +359,6 @@ namespace Haier_E246_TestTool.ViewModels
             var packet = new DataPacket(cmdId);
             _serialService.SendData(packet.ToBytes());
 
-            // 等待回复 (2秒超时)
             var completedTask = await Task.WhenAny(_currentStepTcs.Task, Task.Delay(2000));
             return completedTask == _currentStepTcs.Task && _currentStepTcs.Task.Result;
         }
@@ -371,8 +445,6 @@ namespace Haier_E246_TestTool.ViewModels
                 AddLog($"[设置] VLC路径已更新: {VlcPath}");
             }
         }
-
-        // 添加日志的方法
         public void AddLog(string msg)
         {
             lock (_logLock)

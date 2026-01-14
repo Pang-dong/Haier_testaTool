@@ -82,6 +82,26 @@ namespace Haier_E246_TestTool.ViewModels
             get => _ftpIp;
             set => SetProperty(ref _ftpIp, value);
         }
+        private bool _isLoging;
+
+        // 2. 手动实现 IsLoging 属性
+        public bool IsLoging
+        {
+            get => _isLoging;
+            set
+            {
+                // SetProperty 会自动对比新旧值，如果改变了不仅会更新 _isLoging，还会通知界面 "IsLoging" 变了
+                if (SetProperty(ref _isLoging, value))
+                {
+                    // 【关键】手动通知界面："IsNotLoging" 也变了！
+                    // 这样绑定了 IsNotLoging 的按钮才会知道要去刷新状态
+                    OnPropertyChanged(nameof(IsNotLoging));
+                }
+            }
+        }
+
+        // 3. 定义只读属性给按钮绑定 (取反)
+        public bool IsNotLoging => !IsLoging;
 
         // --- 构造函数 ---
         public LoginViewModel()
@@ -91,7 +111,7 @@ namespace Haier_E246_TestTool.ViewModels
             UserName = _config.LastUser;
             IsRememberMe = _config.IsRememberMe;
             SelectedStationType = string.IsNullOrEmpty(_config.LastStationType) ? "测试工站" : _config.LastStationType;
-            IsMesMode = _config.IsMesMode; // 默认调试模式
+            IsMesMode = _config.IsMesMode;
             FtpIp = _config.FtpIp;
         }
 
@@ -99,72 +119,83 @@ namespace Haier_E246_TestTool.ViewModels
         [RelayCommand]
         private async Task Login(object parameter)
         {
-            if (parameter is System.Windows.Controls.PasswordBox pb)
+            if (IsLoging) return;
+            try
             {
-                Password = pb.Password;
-            }
-
-            ErrorMessage = "";
-
-            if (IsMesMode)
-            {
-                if (string.IsNullOrWhiteSpace(UserName) || string.IsNullOrEmpty(Password))
+                IsLoging = true;
+                if (parameter is System.Windows.Controls.PasswordBox pb)
                 {
-                    ErrorMessage = "账号密码不能为空";
-                    return;
+                    Password = pb.Password;
                 }
-                bool isMesLoginSuccess = await MesLoginAsync(UserName, Password);
 
-                if (!isMesLoginSuccess)
+                ErrorMessage = "";
+
+                if (IsMesMode)
                 {
-                    ErrorMessage = "MES 登录失败：账号或密码错误";
-                    return;
+                    if (string.IsNullOrWhiteSpace(UserName) || string.IsNullOrEmpty(Password))
+                    {
+                        ErrorMessage = "账号密码不能为空";
+                        return;
+                    }
+                    bool isMesLoginSuccess = await MesLoginAsync(UserName, Password);
+
+                    if (!isMesLoginSuccess)
+                    {
+                        //ErrorMessage = "MES 登录失败：账号或密码错误";
+                        return;
+                    }
                 }
-            }
-            else
-            {
-                if (string.IsNullOrWhiteSpace(UserName)) UserName = "DebugUser";
-            }
-
-            // 2. 保存登录信息
-            _config.LastUser = UserName;
-            _config.LastStationType = SelectedStationType;
-            _config.IsRememberMe = IsRememberMe;
-            if (IsRememberMe)
-            {
-                _config.Password = Password; // 如果勾选了，就保存密码
-            }
-            else
-            {
-                _config.Password = ""; // 如果没勾选，就把旧密码清空
-            }
-            App.ConfigService.Save(_config);
-
-            // 3. 跳转逻辑
-            if (SelectedStationType == "烧录工站")
-            {
-                // 打开烧录界面
-                var burnWin = new BurnWindow();
-                burnWin.Show();
-            }
-            else
-            {
-                var mainViewModel = new MainViewModel(App.SerialService, App.AppConfig, App.LogService);
-
-                var mainWin = new MainWindow();
-                mainWin.DataContext = mainViewModel; // 绑定后，按钮才有反应
-
-                // 重新绑定日志事件，否则主界面日志不显示
-                App.LogService.OnNewLog += (msg, type) =>
+                else
                 {
-                    mainViewModel.AddLog(msg);
-                };
+                    if (string.IsNullOrWhiteSpace(UserName)) UserName = "输入账号";
+                }
 
-                mainWin.Show();
+                // 2. 保存登录信息
+                _config.LastUser = UserName;
+                _config.LastStationType = SelectedStationType;
+                _config.IsRememberMe = IsRememberMe;
+                _config.IsMesMode = IsMesMode;
+                if (IsRememberMe)
+                {
+                    _config.Password = Password;
+                }
+                else
+                {
+                    _config.Password = "";
+                }
+                App.ConfigService.Save(_config);
+                if (SelectedStationType == "烧录工站")
+                {
+                    var burnWin = new BurnWindow();
+                    burnWin.Show();
+                }
+                else
+                {
+                    var mainViewModel = new MainViewModel(App.SerialService, App.AppConfig, App.LogService);
+
+                    var mainWin = new MainWindow();
+                    mainWin.DataContext = mainViewModel; // 绑定后，按钮才有反应
+
+                    // 重新绑定日志事件，否则主界面日志不显示
+                    App.LogService.OnNewLog += (msg, type) =>
+                    {
+                        mainViewModel.AddLog(msg);
+                    };
+
+                    mainWin.Show();
+                }
+
+                //关闭登录窗口
+                CloseAction?.Invoke();
             }
-
-            // 4. 关闭登录窗口
-            CloseAction?.Invoke();
+            catch (Exception ex)
+            {
+                ErrorMessage = $"系统异常: {ex.Message}";
+            }
+            finally
+            {
+                IsLoging = false;
+            }
         }
         private async Task<bool> MesLoginAsync(string user, string pwd)
         {

@@ -8,7 +8,7 @@ namespace Haier_E246_TestTool.Services
     public class WriteTestResultService
     {
         public string EnrichJsonData(string originalJson, AppConfig config, string testStation,
-                              string deviceMac, string wifiVer, string cameraVer)
+                              string deviceMac, string wifiVer, string cameraVer,string sn)
         {
             try
             {
@@ -16,13 +16,14 @@ namespace Haier_E246_TestTool.Services
 
                 if (config != null)
                 {
-                    jsonObject["Operator"] = config.UserName;
+                    jsonObject["Operator"] = config.LastUser;
                 }
                 jsonObject["TestType"] = testStation;
                 jsonObject["MAC"] = deviceMac;
                 jsonObject["MAC1"] = wifiVer;
                 jsonObject["MAC2"] = cameraVer;
-                jsonObject["TestTime"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                jsonObject["SN"] = sn;
+                jsonObject["ZJ_Result"] = 1;
 
                 return jsonObject.ToString(Newtonsoft.Json.Formatting.None);
             }

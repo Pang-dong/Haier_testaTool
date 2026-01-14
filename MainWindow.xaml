@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Haier_E246_TestTool.ViewModels"
         mc:Ignorable="d"
-        Title="工厂产品自动化测试工具 V1.0" Height="600" Width="900"
+        Title="Haier_E246_TestTool_V1.0" Height="750" Width="900"
         Background="#F0F0F0">
 
     <d:Window.DataContext>
@@ -122,15 +122,42 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <TextBlock Text="运行日志" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
+
+                <Border Grid.Row="0" 
+                Background="{Binding ResultColor}" 
+                CornerRadius="8" 
+                Padding="10" Margin="0,0,0,15" 
+                MinHeight="80">
+                    <TextBlock Text="{Binding ResultText}" 
+                       FontSize="48" FontWeight="Black" Foreground="White" 
+                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock.Effect>
+                            <DropShadowEffect ShadowDepth="3" BlurRadius="5" Opacity="0.5"/>
+                        </TextBlock.Effect>
+                    </TextBlock>
+                </Border>
+
+                <GroupBox Grid.Row="1" Header="MES系统反馈 / 提示信息" Margin="0,0,0,15" Height="100" BorderBrush="Gray">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <TextBlock Text="{Binding MesMessage}" 
+                           TextWrapping="Wrap" 
+                           FontSize="16" FontWeight="Bold" Foreground="#0056D2" 
+                           Padding="5"/>
+                    </ScrollViewer>
+                </GroupBox>
+
+                <TextBlock Grid.Row="2" Text="运行日志 (Console Log)" FontWeight="Bold" FontSize="14" Margin="0,0,0,5"/>
 
                 <ListBox x:Name="LogListBox" 
-                         Grid.Row="1" 
-                         ItemsSource="{Binding UiLogs}" 
-                         ScrollViewer.VerticalScrollBarVisibility="Auto"
-                         FontFamily="Consolas" FontSize="12">
+                 Grid.Row="3" 
+                 ItemsSource="{Binding UiLogs}" 
+                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 FontFamily="Consolas" FontSize="12"
+                 BorderThickness="1" BorderBrush="#EEEEEE">
                 </ListBox>
             </Grid>
         </Border>
