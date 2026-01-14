@@ -7,6 +7,10 @@ using System;
 using System.Collections.ObjectModel;
 using System.Web.UI.WebControls;
 using System.Windows;
+using Newtonsoft.Json;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using static Haier_E246_TestTool.Services.ReturnResult;
 
 namespace Haier_E246_TestTool.ViewModels
 {
@@ -40,6 +44,7 @@ namespace Haier_E246_TestTool.ViewModels
             set => SetProperty(ref _isRememberMe, value);
         }
 
+
         private string _userName;
         public string UserName
         {
@@ -71,24 +76,27 @@ namespace Haier_E246_TestTool.ViewModels
             get => _errorMessage;
             set => SetProperty(ref _errorMessage, value);
         }
+        private string _ftpIp;
+        public string FtpIp
+        {
+            get => _ftpIp;
+            set => SetProperty(ref _ftpIp, value);
+        }
 
         // --- 构造函数 ---
         public LoginViewModel()
         {
             _config = App.AppConfig;
-
-             // 获取服务实例
-             var configService = App.ConfigService;
             // 读取上次记录
             UserName = _config.LastUser;
-            IsRememberMe = _config.IsRememberMe;
             SelectedStationType = string.IsNullOrEmpty(_config.LastStationType) ? "测试工站" : _config.LastStationType;
             IsMesMode = false; // 默认调试模式
+            FtpIp = _config.FtpIp;
         }
 
         // --- 登录命令 ---
         [RelayCommand]
-        private void Login(object parameter)
+        private async Task Login(object parameter)
         {
             if (parameter is System.Windows.Controls.PasswordBox pb)
             {
@@ -97,21 +105,18 @@ namespace Haier_E246_TestTool.ViewModels
 
             ErrorMessage = "";
 
-            // 1. MES 模式校验 (预留接口)
             if (IsMesMode)
             {
-                if (string.IsNullOrWhiteSpace(UserName))
+                if (string.IsNullOrWhiteSpace(UserName) || string.IsNullOrEmpty(Password))
                 {
-                    ErrorMessage = "请输入账号！";
+                    ErrorMessage = "账号密码不能为空";
                     return;
                 }
-
-                // 【预留接口】在这里调用你的 MES 登录 API
-                bool isMesLoginSuccess = MockMesLogin(UserName, Password);
+                bool isMesLoginSuccess = await MesLoginAsync(UserName, Password);
 
                 if (!isMesLoginSuccess)
                 {
-                    ErrorMessage = "MES 登录失败：账号或密码错误 (模拟)";
+                    ErrorMessage = "MES 登录失败：账号或密码错误";
                     return;
                 }
             }
@@ -123,6 +128,15 @@ namespace Haier_E246_TestTool.ViewModels
             // 2. 保存登录信息
             _config.LastUser = UserName;
             _config.LastStationType = SelectedStationType;
+            _config.IsRememberMe = IsRememberMe;
+            if (IsRememberMe)
+            {
+                _config.Password = Password; // 如果勾选了，就保存密码
+            }
+            else
+            {
+                _config.Password = ""; // 如果没勾选，就把旧密码清空
+            }
             App.ConfigService.Save(_config);
 
             // 3. 跳转逻辑
@@ -142,12 +156,47 @@ namespace Haier_E246_TestTool.ViewModels
             // 4. 关闭登录窗口
             CloseAction?.Invoke();
         }
-
-        // 模拟 MES 登录的方法
-        private bool MockMesLogin(string user, string pwd)
+        private async Task<bool> MesLoginAsync(string user, string pwd)
         {
-            // 你以后在这里写真正的逻辑
-            return true;
+            try
+            {
+                // 1. 准备参数
+                var args = new Dictionary<string, object>
+                {
+                     { "_username", user },
+                     { "_password", pwd }
+                };
+
+                string url = $"http://{FtpIp}:8017/Service.asmx";
+
+                string jsonStr = await InvokeMESInterface.PostToMesAsync(url, "GetUserLoginInfo", args);
+
+                // 4. 校验返回数据
+                if (string.IsNullOrEmpty(jsonStr) || jsonStr.Contains("ERROR"))
+                {
+                    ErrorMessage = $"接口调用失败: {jsonStr}";
+                    return false;
+                }
+
+                // 5. 解析 JSON
+                var result = JsonConvert.DeserializeObject<BaseResult>(jsonStr);
+
+                if (result != null && result.IsSuccess)
+                {
+                    return true;
+                }
+                else
+                {
+                    // 登录失败，显示 MES 返回的错误信息
+                    ErrorMessage = result?.msg ?? "MES返回未知错误";
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage = $"系统异常: {ex.Message}";
+                return false;
+            }
         }
 
         [RelayCommand]

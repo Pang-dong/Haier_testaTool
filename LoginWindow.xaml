@@ -51,7 +51,12 @@
                 <PasswordBox x:Name="TxtPassword" Height="35" FontSize="14" VerticalContentAlignment="Center"
                              IsEnabled="{Binding IsMesMode}"/>
             </StackPanel>
-
+            <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,10">
+                <CheckBox Content="记住密码" 
+              IsChecked="{Binding IsRememberMe}" 
+              Foreground="#666" 
+              VerticalContentAlignment="Center"/>
+            </StackPanel>
             <TextBlock Grid.Row="5" Text="{Binding ErrorMessage}" Foreground="Red" 
                        TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,0,0,10"/>
 

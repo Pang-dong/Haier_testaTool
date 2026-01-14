@@ -69,6 +69,8 @@
     </Compile>
     <Compile Include="Models\AppConfig.cs" />
     <Compile Include="Models\ConfigService.cs" />
+    <Compile Include="Models\InvokeMESInterfaceHttp.cs" />
+    <Compile Include="Models\ReturnResult.cs" />
     <Compile Include="Models\TestCommandItem.cs" />
     <Compile Include="Services\PlayVideoHelper.cs" />
     <Compile Include="Models\TestResultModel.cs" />

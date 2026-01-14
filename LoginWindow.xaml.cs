@@ -30,6 +30,10 @@ namespace Haier_E246_TestTool
 
             // 绑定关闭动作
             vm.CloseAction = () => this.Close();
+            if (App.AppConfig.IsRememberMe && !string.IsNullOrEmpty(App.AppConfig.Password))
+            {
+                this.TxtPassword.Password = App.AppConfig.Password;
+            }
         }
     }
 }
