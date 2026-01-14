@@ -12,14 +12,10 @@ namespace Haier_E246_TestTool.Services
 
         public LogService()
         {
-            // log4net 初始化已经在 AssemblyInfo.cs 里配置了 [assembly: XmlConfigurator(Watch = true)]
-            // 所以这里不需要额外代码
         }
 
         public void WriteLog(string message, LogType type, bool saveToFile)
         {
-            // 1. 触发 UI 更新事件 (这一步保持不变，用于界面显示)
-            // 为了界面好看，这里可以简单拼接一下，或者直接传原始 msg
             string uiMsg = $"[{DateTime.Now:HH:mm:ss.fff}] [{type}] {message}";
             OnNewLog?.Invoke(uiMsg, type);
 

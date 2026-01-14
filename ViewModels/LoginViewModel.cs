@@ -89,8 +89,9 @@ namespace Haier_E246_TestTool.ViewModels
             _config = App.AppConfig;
             // 读取上次记录
             UserName = _config.LastUser;
+            IsRememberMe = _config.IsRememberMe;
             SelectedStationType = string.IsNullOrEmpty(_config.LastStationType) ? "测试工站" : _config.LastStationType;
-            IsMesMode = false; // 默认调试模式
+            IsMesMode = _config.IsMesMode; // 默认调试模式
             FtpIp = _config.FtpIp;
         }
 
@@ -148,8 +149,17 @@ namespace Haier_E246_TestTool.ViewModels
             }
             else
             {
-                // 打开测试主界面
+                var mainViewModel = new MainViewModel(App.SerialService, App.AppConfig, App.LogService);
+
                 var mainWin = new MainWindow();
+                mainWin.DataContext = mainViewModel; // 绑定后，按钮才有反应
+
+                // 重新绑定日志事件，否则主界面日志不显示
+                App.LogService.OnNewLog += (msg, type) =>
+                {
+                    mainViewModel.AddLog(msg);
+                };
+
                 mainWin.Show();
             }
 

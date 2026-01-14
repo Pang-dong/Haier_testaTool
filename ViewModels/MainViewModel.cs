@@ -13,6 +13,8 @@ using System.Windows.Media;
 using System.Diagnostics;
 using Microsoft.Win32;
 using System.Linq;
+using Newtonsoft.Json;
+using static Haier_E246_TestTool.Services.ReturnResult;
 
 namespace Haier_E246_TestTool.ViewModels
 {
@@ -60,12 +62,8 @@ namespace Haier_E246_TestTool.ViewModels
             get => _isAutoTesting;
             set
             {
-                // SetProperty 是 ObservableObject 提供的基础方法
-                // 它会自动处理 _isAutoTesting = value 和 OnPropertyChanged(nameof(IsAutoTesting))
                 if (SetProperty(ref _isAutoTesting, value))
                 {
-                    // 【关键点】手动通知界面：IsNotAutoTesting 也变了！
-                    // 这样你的按钮 IsEnabled 状态才会刷新
                     OnPropertyChanged(nameof(IsNotAutoTesting));
                 }
             }
@@ -148,6 +146,12 @@ namespace Haier_E246_TestTool.ViewModels
                 }
             }
         }
+        private bool _isMesMode;
+        public bool IsMesMode
+        {
+            get => _isMesMode;
+            set => SetProperty(ref _isMesMode, value);
+        }
 
         public ObservableCollection<string> UiLogs { get; } = new ObservableCollection<string>();
 
@@ -156,21 +160,22 @@ namespace Haier_E246_TestTool.ViewModels
         }
 
         // 实际运行时调用的构造函数
-        public MainViewModel(SerialPortService serialService, AppConfig config,ILogService logService)
+        public MainViewModel(SerialPortService serialService, AppConfig config, ILogService logService)
         {
             _serialService = serialService;
             _logService = logService;
             CurrentConfig = config;
             StationName = config.StationName;
             BaudRate = config.BaudRate;
+            
             BindingOperations.EnableCollectionSynchronization(UiLogs, _logLock);
             RefreshPorts();
             _serialService.DataReceived += HandleDataReceived;
-            TestCommands.Add(new TestCommandItem("获取MAC",0x03));
+            TestCommands.Add(new TestCommandItem("获取MAC", 0x03));
             TestCommands.Add(new TestCommandItem("获取WiFi版本", 0x02));
             TestCommands.Add(new TestCommandItem("获取Camera版本", 0x01));
-            TestCommands.Add(new TestCommandItem("打开AP模式", 0x08));
-            TestCommands.Add(new TestCommandItem("打开视频", 0x09));
+            //TestCommands.Add(new TestCommandItem("打开AP模式", 0x08));
+            //TestCommands.Add(new TestCommandItem("打开视频", 0x09));
         }
         [RelayCommand]
         private void ExecuteTestCommand(TestCommandItem item)
@@ -220,22 +225,41 @@ namespace Haier_E246_TestTool.ViewModels
                     if (success)
                     {
                         cmd.SetSuccess(); // 变绿
-                        // 记录结果 (根据ID判断是哪一项)
-                        if (cmd.CommandId == 0x00) currentResult.Test_Handshake = 1;
-                        if (cmd.CommandId == 0x03) currentResult.Test_ReadMac = 1;
-                        if (cmd.CommandId == 0x05) currentResult.Test_Function = 1;
+                        if (cmd.CommandId == 0x01) currentResult.Test_Camera_Version = 1;
+                        if (cmd.CommandId == 0x02) currentResult.Test_WIFI_VERSION = 1;
+                        if (cmd.CommandId == 0x0) currentResult.Test_ReadMac = 1;
                     }
                     else
                     {
                         cmd.SetFail(); // 变红
                     }
-
-                    // 稍微停顿一下，让界面有反应时间
                     await Task.Delay(500);
                 }
+                string rawJson = JsonConvert.SerializeObject(currentResult);
 
-                // 统合结果逻辑...
-                // _writeResultService.BuildFinalJson(currentResult, CurrentConfig)...
+                // 2. 实例化服务并处理数据
+                var writeService = new WriteTestResultService();
+
+                string finalJson = writeService.EnrichJsonData(rawJson,CurrentConfig,"功能测试",DeviceMac,WiFiVersion, CameraVersion);
+                if (IsMesMode) 
+                {
+                    AddLog("上传MES功能测试工序数据");
+                    string resultInfo = Task.Run(async () =>
+                    {
+                        return await WebApiHelper.WriteTestResultAsync(finalJson);
+                    }).GetAwaiter().GetResult();
+                    OuterResponse outer = JsonConvert.DeserializeObject<OuterResponse>(resultInfo);
+
+                    BaseResult baseResult = JsonConvert.DeserializeObject<BaseResult>(outer.resultMsg);
+                    if (baseResult != null && baseResult.IsSuccess)
+                    {
+                        AddLog("MES功能测试工序数据上传成功");
+                    }
+                    else
+                    {
+                        AddLog($"MES功能测试工序数据上传失败: {baseResult?.msg}");
+                    }
+                }
             }
             finally
             {
@@ -290,9 +314,6 @@ namespace Haier_E246_TestTool.ViewModels
                             var handshakePacket = new DataPacket(0x00);
                             _serialService.SendData(handshakePacket.ToBytes());
                             AddLog("已发送握手响应");
-                            handshakePacket =new DataPacket(0x03);
-                            _serialService.SendData(handshakePacket.ToBytes());
-                            AddLog("自动获取MAC地址");
                             break;
 
                         case 0x03: // MAC 地址
@@ -301,7 +322,7 @@ namespace Haier_E246_TestTool.ViewModels
                             AddLog($"[响应] MAC地址: {mac}");
                             break;
 
-                        case 0x02: 
+                        case 0x02:
                             string levver = Encoding.ASCII.GetString(packet.Payload);
                             WiFiVersion = levver;
                             AddLog($"[响应] Wifi版本: {levver}");
@@ -342,7 +363,7 @@ namespace Haier_E246_TestTool.ViewModels
             {
                 VlcPath = openFileDialog.FileName;
                 AddLog($"[设置] VLC路径已更新: {VlcPath}");
-            }                    
+            }
         }
 
         // 添加日志的方法
@@ -382,7 +403,7 @@ namespace Haier_E246_TestTool.ViewModels
                     }
                 }
                 AddLog("[信息] 串口已关闭");
-                return; 
+                return;
             }
             // 如果当前是关闭状态，执行打开逻辑
             if (string.IsNullOrEmpty(SelectedPort))
@@ -405,7 +426,8 @@ namespace Haier_E246_TestTool.ViewModels
         [RelayCommand]
         private void SendCommand(string commandTag)
         {
-            if (!IsConnected) {AddLog("【错误】串口未打开"); return; };
+            if (!IsConnected) { AddLog("【错误】串口未打开"); return; }
+            ;
             if (commandTag != "Cmd1" && !IsHandshaked)
             {
                 MessageBox.Show("请先“进入产测模式”进行握手！", "操作受限");

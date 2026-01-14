@@ -23,12 +23,8 @@ namespace Haier_E246_TestTool
         public LoginWindow()
         {
             InitializeComponent();
-
-            // 绑定 ViewModel
             var vm = new LoginViewModel();
             this.DataContext = vm;
-
-            // 绑定关闭动作
             vm.CloseAction = () => this.Close();
             if (App.AppConfig.IsRememberMe && !string.IsNullOrEmpty(App.AppConfig.Password))
             {
