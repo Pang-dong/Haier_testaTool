@@ -71,6 +71,12 @@ namespace Haier_E246_TestTool.ViewModels
 
         // 这个属性依赖于 IsAutoTesting，用于给按钮绑定 IsEnabled
         public bool IsNotAutoTesting => !IsAutoTesting;
+        private string _sN = "等待获取...";
+        public string SN
+        {
+            get => _sN;
+            set => SetProperty(ref _sN, value);
+        }
 
         // 1. 设备信息属性 (手动实现)
         private string _deviceMac = "等待获取...";

@@ -1,0 +1,15 @@
+﻿<Window x:Class="Haier_E246_TestTool.InputBox"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Haier_E246_TestTool"
+        mc:Ignorable="d"
+        Title="输入框" Height="154" Width="332" WindowStartupLocation="CenterScreen" Loaded="Window_Loaded">
+    <Grid>
+        <Label Name="Lbl_title" Content="请输入生产批次号:" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Width="295"/>
+        <TextBox Name="TBox_value" HorizontalAlignment="Left" Height="23" Margin="10,40,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="295" input:InputMethod.IsInputMethodEnabled="False" PreviewKeyDown="tbox_value_PreviewKeyDown" PreviewTextInput="TBox_value_PreviewTextInput"/>
+        <Button Name="Btn_Confirm" Content="确定" HorizontalAlignment="Left" Margin="230,83,0,0" VerticalAlignment="Top" Width="75" Click="Button_Click_Confirm"/>
+        <Button Name="Btn_Cancel" Content="取消" HorizontalAlignment="Left" Margin="150,83,0,0" VerticalAlignment="Top" Width="75" Click="Button_Click_Cancel"/>
+    </Grid>
+</Window>

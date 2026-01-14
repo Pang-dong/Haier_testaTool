@@ -42,6 +42,10 @@
                 <GroupBox Header="设备信息" Margin="0,20,0,0" Padding="5">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,5">
+                            <Label Content="SN号：" Width="60" HorizontalContentAlignment="Right"/>
+                            <TextBox Text="{Binding SN}" Width="180" IsReadOnly="True" VerticalContentAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,5">
                             <Label Content="WIFI版本：" Width="60" HorizontalContentAlignment="Right"/>
                             <TextBox Text="{Binding WiFiVersion}" Width="180" IsReadOnly="True" VerticalContentAlignment="Center"/>
                         </StackPanel>
