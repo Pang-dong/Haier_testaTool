@@ -15,6 +15,7 @@ using Microsoft.Win32;
 using System.Linq;
 using Newtonsoft.Json;
 using static Haier_E246_TestTool.Services.ReturnResult;
+using Newtonsoft.Json.Linq;
 
 namespace Haier_E246_TestTool.ViewModels
 {
@@ -213,7 +214,7 @@ namespace Haier_E246_TestTool.ViewModels
             }
         }
         [RelayCommand]
-        private void ExecuteTestCommand(TestCommandItem item)
+        private async Task ExecuteTestCommand(TestCommandItem item)
         {
             if (item == null) return;
             if (!IsConnected) { AddLog("串口未打开"); return; }
@@ -224,12 +225,172 @@ namespace Haier_E246_TestTool.ViewModels
                 MessageBox.Show("请先执行握手(进入产测模式)！");
                 return;
             }
-
+            if (item.CommandId == 0xFF)
+            {
+                var packetamc = new DataPacket(0x03);
+                _serialService.SendData(packetamc.ToBytes());
+                await Task.Delay(500);
+                await ExecuteInfoCheck(item);
+                return;
+            }
             // 发送数据
             var packet = new DataPacket(item.CommandId);
             _serialService.SendData(packet.ToBytes());
             _logService.WriteLog($"[发送] {item.Name} (ID:{item.CommandId:X2})");
         }
+
+        /// <summary>
+        /// 执行信息核对：MES获取MAC -> 弹窗扫贴纸MAC -> 与本地MAC进行三码比对
+        /// </summary>
+        private async Task ExecuteInfoCheck(TestCommandItem item)
+        {
+            // 1. 基础校验：SN 和 设备本地 MAC 必须存在
+            if (string.IsNullOrEmpty(SN) || SN == "等待获取...")
+            {
+                MessageBox.Show("请先扫描SN号！");
+                AddLog("[核对] 失败：未扫描SN");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(DeviceMac) || DeviceMac.Contains("等待"))
+            {
+                AddLog("[核对] 错误：设备MAC未读取，无法进行比对。请先执行读取MAC步骤。");
+                MesMessage = "核对失败：未获取设备MAC";
+                ResultText = "FAIL";
+                ResultColor = Brushes.Red;
+                item.SetFail();
+                return;
+            }
+
+            try
+            {
+                AddLog($"[核对] 1/3 正在查询MES信息 (SN: {SN})...");
+                MesMessage = "正在获取MES信息...";
+                item.ResetColor();
+
+                // 2. 调用 WebApi 获取 MES 端的 MAC
+                string jsonResponse = await WebApiHelper.GetSNCodeInfoAsync(SN, "信息核对");
+
+                if (string.IsNullOrEmpty(jsonResponse))
+                {
+                    HandleCheckFail(item, "MES接口返回为空");
+                    return;
+                }
+
+                JObject jsonObj = JObject.Parse(jsonResponse);
+                string mesMac = jsonObj["MAC"]?.ToString(); // 假设字段名叫 MAC
+
+                if (string.IsNullOrEmpty(mesMac))
+                {
+                    HandleCheckFail(item, $"MES返回数据中无MAC字段。原始数据: {jsonResponse}");
+                    return;
+                }
+                AddLog($"[核对] MES返回MAC: {mesMac}");
+
+                var inputBox = new InputBox();
+                inputBox.Title = "请扫描贴纸MAC"; // 设置弹窗标题提示用户
+                                             // 如果您修改了 InputBox 代码公开了 Label，可以设置: inputBox.Lbl_title.Content = "扫描贴纸MAC:";
+
+                string stickerMac = "";
+                if (inputBox.ShowDialog() == true)
+                {
+                    stickerMac = inputBox.Value;
+                    AddLog($"[核对] 2/3 扫描贴纸MAC: {stickerMac}");
+                }
+                else
+                {
+                    AddLog("[核对] 操作取消：未扫描贴纸MAC");
+                    item.ResetColor();
+                    return;
+                }
+
+                // 4. 三码比对 (归一化：去冒号、去横杠、转大写)
+                string normDevMac = NormalizeMac(DeviceMac);
+                string normMesMac = NormalizeMac(mesMac);
+                string normScanMac = NormalizeMac(stickerMac);
+
+                bool isMatch = (normDevMac == normMesMac) && (normDevMac == normScanMac);
+
+                if (isMatch)
+                {
+                    // --- 校验通过 ---
+                    string successMsg = $"三码一致 (PASS)\r\n设备: {DeviceMac}\r\nMES: {mesMac}\r\n贴纸: {stickerMac}";
+                    MesMessage = successMsg;
+                    ResultText = "PASS";
+                    ResultColor = Brushes.Green;
+                    item.SetSuccess();
+                    AddLog($"[核对] 3/3 成功：{successMsg.Replace("\r\n", " | ")}");
+                    var currentResult = new TestResultModel();
+                    currentResult.YH_Result = 1;
+                    string resut = JsonConvert.SerializeObject(currentResult);
+                    var writeService = new WriteTestResultService();
+                    string result = writeService.WriteJsonYHResult(resut, "信息核对", CurrentConfig,SN);
+                    string resultInfo = await WebApiHelper.WriteTestResultAsync(result);
+                    // 解析外层响应
+                    OuterResponse outer = JsonConvert.DeserializeObject<OuterResponse>(resultInfo);
+                    if (outer != null && !string.IsNullOrEmpty(outer.resultMsg))
+                    {
+                        BaseResult baseResult = JsonConvert.DeserializeObject<BaseResult>(outer.resultMsg);
+
+                        if (baseResult != null && baseResult.IsSuccess)
+                        {
+                            AddLog("MES上传成功");
+                            MesMessage = $"MES上传成功: {baseResult.msg}"; // 更新画布信息
+                        }
+                        else
+                        {
+                            AddLog($"MES上传失败: {baseResult?.msg}");
+                            MesMessage = $"MES上传失败: {baseResult?.msg}"; // 更新画布信息
+
+                            ResultText = "FAIL (MES)";
+                            ResultColor = Brushes.Red;
+                        }
+                    }
+                    else
+                    {
+                        AddLog("MES返回格式异常");
+                        MesMessage = "MES返回格式异常";
+                    }
+                }
+                else
+                {
+                    // --- 校验失败 ---
+                    StringBuilder sb = new StringBuilder();
+                    sb.AppendLine("MAC不一致 (FAIL)");
+                    if (normDevMac != normMesMac) sb.AppendLine($"设备({DeviceMac}) != MES({mesMac})");
+                    if (normDevMac != normScanMac) sb.AppendLine($"设备({DeviceMac}) != 贴纸({stickerMac})");
+                    if (normMesMac != normScanMac) sb.AppendLine($"MES({mesMac}) != 贴纸({stickerMac})");
+
+                    MesMessage = sb.ToString();
+                    ResultText = "FAIL";
+                    ResultColor = Brushes.Red;
+                    item.SetFail();
+                    AddLog($"[核对] 3/3 失败：{sb.ToString().Replace("\r\n", " ")}");
+                }
+            }
+            catch (Exception ex)
+            {
+                HandleCheckFail(item, $"异常: {ex.Message}");
+            }
+        }
+
+        // 辅助方法：处理失败逻辑
+        private void HandleCheckFail(TestCommandItem item, string errorMsg)
+        {
+            MesMessage = errorMsg;
+            ResultText = "ERROR";
+            ResultColor = Brushes.Red;
+            item.SetFail();
+            AddLog($"[核对] {errorMsg}");
+        }
+
+        // 辅助方法：MAC地址归一化 (去冒号、横杠、空格，转大写)
+        private string NormalizeMac(string mac)
+        {
+            if (string.IsNullOrEmpty(mac)) return "";
+            return mac.Replace(":", "").Replace("-", "").Replace(" ", "").Trim().ToUpper();
+        }
+
         [RelayCommand]
         private async Task StartAutoTest()
         {

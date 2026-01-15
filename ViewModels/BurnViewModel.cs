@@ -156,6 +156,13 @@ namespace Haier_E246_TestTool.ViewModels
                 AddLog("取消测试：未输入SN");
                 return;
             }
+            //var currentResult = new TestResultModel();
+            //currentResult.Tset_Linsence = 1;
+            //string resut = JsonConvert.SerializeObject(currentResult);
+            //var writeService = new WriteTestResultService();
+            //string result = writeService.WriteJsonResult(resut,"烧录工站", _config, "5C738E9CF3",SN);
+
+            //string a = await WebApiHelper.WriteTestResultAsync(result);
             // 1. 检查并创建文件夹
             if (!Directory.Exists(SourceDir)) Directory.CreateDirectory(SourceDir);
             if (!Directory.Exists(TargetDir)) Directory.CreateDirectory(TargetDir);

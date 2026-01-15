@@ -26,6 +26,10 @@ namespace Haier_E246_TestTool.Models
         /// 获取wifi版本
         /// </summary>
         public int Test_WIFI_VERSION { get; set; } = 0;
+        /// <summary>
+        /// Linsence烧录
+        /// </summary>
+        public int Tset_Linsence {  get; set; } = 0;    
 
         /// <summary>
         /// 最终结论 (所有项都为1才算Pass)
@@ -33,6 +37,10 @@ namespace Haier_E246_TestTool.Models
         public bool IsTotalPass => Test_ReadMac == 1 && Test_Camera_Version == 1&& Test_WIFI_VERSION==1;
 
         public int Test_Handshake { get; set; }
+        /// <summary>
+        /// 写号结果
+        /// </summary>
+        public int YH_Result { get; set; } = 0;
     }
     public partial class OuterResponse
     {

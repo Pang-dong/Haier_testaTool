@@ -33,5 +33,51 @@ namespace Haier_E246_TestTool.Services
                 return originalJson;
             }
         }
+        public string WriteJsonResult(string originalJson, string Workstation,AppConfig appConfig,string Lisence,string sn)
+        {
+            try
+            {
+                JObject jsonObject = JObject.Parse(originalJson);
+
+                if (appConfig != null)
+                {
+                    jsonObject["Operator"] =appConfig.LastUser;
+                }
+                jsonObject["TestType"] = Workstation;
+                jsonObject["ZJ_Result"] = 1;
+                jsonObject["UUID"] = Lisence;
+                jsonObject["ComputerNo"] = "192.168.88.144";
+                jsonObject["SN"] = sn;
+
+                return jsonObject.ToString(Newtonsoft.Json.Formatting.None);
+            }
+            catch (Exception ex)
+            {
+                App.LogService?.WriteLog($"JSON数据处理异常: {ex.Message}", LogType.Error, true);
+                return originalJson;
+            }
+        }
+        public string WriteJsonYHResult(string originalJson, string Workstation, AppConfig appConfig, string sn)
+        {
+            try
+            {
+                JObject jsonObject = JObject.Parse(originalJson);
+
+                if (appConfig != null)
+                {
+                    jsonObject["Operator"] = appConfig.LastUser;
+                }
+                jsonObject["TestType"] = Workstation;
+                jsonObject["ZJ_Result"] = 1;
+                jsonObject["SN"] = sn;
+
+                return jsonObject.ToString(Newtonsoft.Json.Formatting.None);
+            }
+            catch (Exception ex)
+            {
+                App.LogService?.WriteLog($"JSON数据处理异常: {ex.Message}", LogType.Error, true);
+                return originalJson;
+            }
+        }
     }
 }
