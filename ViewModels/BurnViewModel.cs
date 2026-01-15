@@ -46,14 +46,14 @@ namespace Haier_E246_TestTool.ViewModels
         }
 
         // 文件夹路径
-        private string _sourceDir = @"C:\BurnFiles\Pending"; // 待烧录
+        private string _sourceDir; // 待烧录
         public string SourceDir
         {
             get => _sourceDir;
             set => SetProperty(ref _sourceDir, value);
         }
 
-        private string _targetDir = @"C:\BurnFiles\Burned";  // 已烧录
+        private string _targetDir;  // 已烧录
         public string TargetDir
         {
             get => _targetDir;
@@ -117,7 +117,11 @@ namespace Haier_E246_TestTool.ViewModels
         public BurnViewModel()
         {
             var logService = new LogService();
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
+            // 拼接为运行目录下的子文件夹
+            SourceDir = Path.Combine(baseDir, "Pending");
+            TargetDir = Path.Combine(baseDir, "Burned");
             // 2. 【关键修正】实例化 ConfigService
             var configService = new ConfigService(logService);
             _config = configService.Load();
@@ -126,8 +130,8 @@ namespace Haier_E246_TestTool.ViewModels
             _portNumber = _config.BurnPort;
             _baudRate = _config.BurnBaud;
             _bkLoaderPath = _config.BkLoaderPath;
-            _sourceDir = _config.BurnSourceDir;
-            _targetDir = _config.BurnTargetDir;
+            //_sourceDir = _config.BurnSourceDir;
+            //_targetDir = _config.BurnTargetDir;
             // 初始化时确保文件夹存在
             try
             {
@@ -212,10 +216,7 @@ namespace Haier_E246_TestTool.ViewModels
         {
             try
             {
-                var requestObj = new { License = license, SN = SN };
-                string jsonParam = JsonConvert.SerializeObject(requestObj);
-
-                string resultInfo = await WebApiHelper.WriteTestResultAsync(jsonParam);
+                string resultInfo = await WebApiHelper.GetLisenceInfonAsync(license);
 
                 // 解析外层
                 OuterResponse outer = JsonConvert.DeserializeObject<OuterResponse>(resultInfo);
@@ -292,14 +293,17 @@ namespace Haier_E246_TestTool.ViewModels
 
             bool success = false;
 
+
+            string appDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app"
+            );
+
             // 在后台线程执行 Process 操作，防止卡死界面
             await Task.Run(() =>
             {
                 // 这里填入你的固定文件路径
-                string mainBin = "app_main.bin";
-                string littleFs = "littlefs.bin";
+                string mainBin = Path.Combine(appDir, _config.MainBin);
+                string littleFs = Path.Combine(appDir, _config.LittlefsBin);
 
-                // 构造参数 (参考你的代码)
                 string args = $"download -p {PortNumber} -b {BaudRate} --mainBin-multi " +
                               $"{mainBin}@0x0-0x3ff600," +
                               $"{authFile}@0x72c000-0xa00," +

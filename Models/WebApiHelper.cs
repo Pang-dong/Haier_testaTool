@@ -165,6 +165,42 @@ namespace Haier_E246_TestTool.Models
             }
         }
         /// <summary>
+        /// 校验许可证信息
+        /// </summary>
+        public static async Task<string> GetLisenceInfonAsync(string barcode, CancellationToken cancellationToken = default)
+        {
+            string token = await GetTokenAsync(cancellationToken);
+
+            using (var httpClient = new HttpClient())
+            {
+                logger.Debug($"获取设备信息_Web_api地址为: {_baseUrl}");
+                httpClient.Timeout = TimeSpan.FromSeconds(10);
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                string url = $"{_baseUrl}/api/Home/GetLicense?Lic={Uri.EscapeDataString(barcode)}";
+
+                try
+                {
+                    HttpResponseMessage response = await httpClient.GetAsync(url, cancellationToken);
+                    response.EnsureSuccessStatusCode();
+                    return await response.Content.ReadAsStringAsync();
+                }
+                catch (TaskCanceledException ex)
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        logger.Debug("设备信息请求被用户取消");
+                        throw new OperationCanceledException("设备信息请求被取消", ex, cancellationToken);
+                    }
+                    else
+                    {
+                        logger.Debug($"连接 {_baseUrl} 超时");
+                        throw new TimeoutException($"连接 {_baseUrl} 超时", ex);
+                    }
+                }
+            }
+        }
+        /// <summary>
         /// 获取Token
         /// </summary>
         private static async Task<string> GetTokenAsync(CancellationToken cancellationToken = default)

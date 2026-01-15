@@ -45,12 +45,10 @@ namespace Haier_E246_TestTool.Protocols
 
                 if (cmdId == 0x00)
                 {
-                    // Cmd 0x00 使用初始值 0x0000 的算法
                     calcCrc = Crc16.ComputeChecksum(packetBytes, 4, 1 + 2 + dataLen);
                 }
                 else
                 {
-                    // 其他命令 (如 0x03) 使用初始值 0xFFFF 的算法
                     calcCrc = Crc16.ComputeChecksum(packetBytes, 4, 1 + 2 + dataLen);
                 }
 

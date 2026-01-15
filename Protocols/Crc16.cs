@@ -4,7 +4,6 @@ namespace Haier_E246_TestTool.Protocols
 {
     public static class Crc16
     {
-        // CRC16-IBM (Poly=0x8005, Init=0x0000, RefIn=True, RefOut=True, XorOut=0x0000)
         private const ushort Polynomial = 0xA001; // 0x8005 反转后的值
         private static readonly ushort[] Table = new ushort[256];
 
