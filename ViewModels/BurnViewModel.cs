@@ -110,7 +110,7 @@ namespace Haier_E246_TestTool.ViewModels
         public bool CanStart => !IsBurning;
 
         // 日志列表
-        public ObservableCollection<string> Logs { get; } = new ObservableCollection<string>();
+        public ObservableCollection<LogItem> Logs { get; } = new ObservableCollection<LogItem>();
 
         // 内部变量：当前文件的完整路径
         private string _currentFilePathInternal;
@@ -123,7 +123,7 @@ namespace Haier_E246_TestTool.ViewModels
             BkLoaderPath = Path.Combine(baseDir, "app", "bk_loader.exe");
             if (!File.Exists(BkLoaderPath))
             {
-                AddLog($"【严重错误】找不到烧录工具: {BkLoaderPath}");
+                AddLog($"【错误】找不到烧录工具: {BkLoaderPath}");
             }
             SourceDir = Path.Combine(baseDir, "Pending");
             TargetDir = Path.Combine(baseDir, "Burned");
@@ -224,16 +224,15 @@ namespace Haier_E246_TestTool.ViewModels
                 OuterResponse outer = JsonConvert.DeserializeObject<OuterResponse>(resultInfo);
                 if (outer != null && !string.IsNullOrEmpty(outer.resultMsg))
                 {
-                    BaseResult baseResult = JsonConvert.DeserializeObject<BaseResult>(outer.resultMsg);
-
-                    if (baseResult != null && baseResult.IsSuccess)
+                    if (outer.status.Equals("0"))
                     {
-                        return true; // 可用
+                        AddLog($"失败:接口拒绝,该SN已经烧录过: {outer.resultMsg}");
+                        return false;
                     }
                     else
                     {
-                        AddLog($"接口拒绝,该SN已经烧录过: {baseResult?.msg}");
-                        return false; // 不可用
+                        AddLog("校验成功");
+                        return true;
                     }
                 }
                 AddLog("接口返回格式异常");
@@ -292,10 +291,7 @@ namespace Haier_E246_TestTool.ViewModels
             StatusText = "BURNING...";
             Logs.Clear();
             AddLog($"准备烧录: {Path.GetFileName(authFile)}");
-
             bool success = false;
-
-
             string appDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app");
 
             // 在后台线程执行 Process 操作，防止卡死界面
@@ -310,7 +306,6 @@ namespace Haier_E246_TestTool.ViewModels
                               $"{authFile}@0x72c000-0xa00," +
                               $"{littleFs}@0x74d000-0x70000 " +
                               $"--reboot 1 --fast-link 1";
-
                 success = ExecuteProcess(BkLoaderPath, args);
             });
 
@@ -422,11 +417,10 @@ namespace Haier_E246_TestTool.ViewModels
             }
             catch (Exception ex)
             {
-                DispatcherLog($"进程异常: {ex.Message}");
+                AddLog($"进程异常: {ex.Message}");
                 return false;
             }
 
-            // 特殊处理：如果是 Power cycle 阶段结束，也视为成功
             if (isPowerCyclePhase && !isSuccess)
             {
                 DispatcherLog("提示：检测到重启流程，视为烧录通过");
@@ -442,16 +436,46 @@ namespace Haier_E246_TestTool.ViewModels
             Application.Current.Dispatcher.Invoke(() => AddLog(msg,false));
         }
 
-        private void AddLog(string msg,bool isSaveToFile = true)
+        private void AddLog(string msg, bool isSaveToFile = true)
         {
-            string log = $"{DateTime.Now:HH:mm:ss} > {msg}";
-            Logs.Add(log);
-            // 限制日志条数
-            if (Logs.Count > 200) Logs.RemoveAt(0);
+            string logTime = DateTime.Now.ToString("HH:mm:ss");
+            string fullMsg = $"{logTime} > {msg}";
+            bool isErrorOrPrompt = msg.Contains("错误") || msg.Contains("Error") ||
+                                   msg.Contains("失败") || msg.Contains("Fail") ||
+                                   msg.Contains("异常") || msg.Contains("Exception") ||
+                                   msg.Contains("警告") || msg.Contains("请扫描");
+
+            SolidColorBrush logColor = isErrorOrPrompt ? Brushes.Red : Brushes.Lime;
+
+            // 2. 更新界面
+            if (Application.Current.Dispatcher.CheckAccess())
+            {
+                UpdateUiLog(fullMsg, logColor);
+            }
+            else
+            {
+                Application.Current.Dispatcher.Invoke(() => UpdateUiLog(fullMsg, logColor));
+            }
             if (isSaveToFile)
             {
-                _logService?.WriteLog(msg, LogType.Info, true);
+                try { _logService?.WriteLog(msg, LogType.Info, true); } catch { }
             }
+        }
+        private void UpdateUiLog(string logContent, SolidColorBrush color)
+        {
+            // 创建对象并添加
+            Logs.Add(new LogItem { Text = logContent, Color = color });
+
+            // 限制行数
+            if (Logs.Count > 200) Logs.RemoveAt(0);
+        }
+        /// <summary>
+        /// 日志模型
+        /// </summary>
+        public class LogItem
+        {
+            public string Text { get; set; }           // 日志内容
+            public SolidColorBrush Color { get; set; } // 显示颜色
         }
     }
 }

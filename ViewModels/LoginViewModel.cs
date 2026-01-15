@@ -27,8 +27,8 @@ namespace Haier_E246_TestTool.ViewModels
         // 工站列表
         public ObservableCollection<string> StationTypes { get; } = new ObservableCollection<string>
         {
-            "测试工站", // 对应 MainWindow
             "烧录工站",  // 对应 BurnWindow
+            "测试工站", // 对应 MainWindow
             "信息核对"
         };
 
