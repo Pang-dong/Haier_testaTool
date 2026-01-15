@@ -194,18 +194,23 @@ namespace Haier_E246_TestTool.ViewModels
             _serialService = serialService;
             _logService = logService;
             CurrentConfig = config;
-            StationName = config.StationName;
+            StationName = config.LastStationType;
             BaudRate = config.BaudRate;
             IsMesMode =config.IsMesMode;
             
             BindingOperations.EnableCollectionSynchronization(UiLogs, _logLock);
             RefreshPorts();
             _serialService.DataReceived += HandleDataReceived;
-            TestCommands.Add(new TestCommandItem("获取MAC", 0x03));
-            TestCommands.Add(new TestCommandItem("获取WiFi版本", 0x02));
-            TestCommands.Add(new TestCommandItem("获取Camera版本", 0x01));
-            //TestCommands.Add(new TestCommandItem("打开AP模式", 0x08));
-            //TestCommands.Add(new TestCommandItem("打开视频", 0x09));
+            if (StationName.Equals("测试工站"))
+            {
+                TestCommands.Add(new TestCommandItem("获取MAC", 0x03));
+                TestCommands.Add(new TestCommandItem("获取WiFi版本", 0x02));
+                TestCommands.Add(new TestCommandItem("获取Camera版本", 0x01));
+            }
+            else
+            {
+                TestCommands.Add(new TestCommandItem("信息核对", 0xFF));
+            }
         }
         [RelayCommand]
         private void ExecuteTestCommand(TestCommandItem item)
@@ -216,7 +221,7 @@ namespace Haier_E246_TestTool.ViewModels
             // 拦截逻辑：如果不是握手命令(0x00)且未握手，则拦截
             if (item.CommandId != 0x00 && !IsHandshaked)
             {
-                System.Windows.MessageBox.Show("请先执行握手(进入产测模式)！");
+                MessageBox.Show("请先执行握手(进入产测模式)！");
                 return;
             }
 
@@ -397,7 +402,7 @@ namespace Haier_E246_TestTool.ViewModels
                             break;
 
                         case 0x03: // MAC 地址
-                            string mac = BitConverter.ToString(packet.Payload).Replace("-", ":");
+                            string mac = BitConverter.ToString(packet.Payload).Replace("-", "");
                             DeviceMac = mac; // 更新界面显示
                             AddLog($"[响应] MAC地址: {mac}");
                             break;

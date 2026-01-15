@@ -1,8 +1,10 @@
 ﻿using Haier_E246_TestTool;
+using Newtonsoft.Json;
 using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection.Emit;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -102,6 +104,63 @@ namespace Haier_E246_TestTool.Models
                 {
                     logger.Error($"上传测试结果失败: {ex.Message}", ex);
                     throw;
+                }
+            }
+        }
+        /// <summary>
+        /// 获取产品相关码信息 (对应接口 GetSNCodeInfo)
+        /// </summary>
+        /// <param name="sn">SN码</param>
+        /// <param name="testType">测试类型</param>
+        public static async Task<string> GetSNCodeInfoAsync(string sn, string testType, CancellationToken cancellationToken = default)
+        {
+            // 1. 获取 Token
+            string token = await GetTokenAsync(cancellationToken);
+
+            using (var httpClient = new HttpClient())
+            {
+                logger.Debug($"获取产品码信息_Web_api地址为: {_baseUrl}");
+                httpClient.Timeout = TimeSpan.FromSeconds(10);
+
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                string url = $"{_baseUrl}/api/Home/GetSNCodeInfo";
+                var requestData = new
+                {
+                    sn = sn,
+                    testType = testType
+                };
+
+                string jsonBody = JsonConvert.SerializeObject(requestData);
+
+                using (var content = new StringContent(jsonBody, Encoding.UTF8, "application/json"))
+                {
+                    try
+                    {
+                        // 发送 POST 请求
+                        HttpResponseMessage response = await httpClient.PostAsync(url, content, cancellationToken);
+
+                        response.EnsureSuccessStatusCode();
+                        return await response.Content.ReadAsStringAsync();
+                    }
+                    catch (TaskCanceledException ex)
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            logger.Debug("获取产品码信息请求被用户取消");
+                            throw new OperationCanceledException("获取产品码信息请求被取消", ex, cancellationToken);
+                        }
+                        else
+                        {
+                            logger.Debug($"连接 {_baseUrl} 超时");
+                            throw new TimeoutException($"连接 {_baseUrl} 超时", ex);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error($"获取产品码信息失败: {ex.Message}", ex);
+                        throw;
+                    }
                 }
             }
         }

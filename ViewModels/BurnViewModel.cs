@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Haier_E246_TestTool.Models;
 using Haier_E246_TestTool.Services;
+using Newtonsoft.Json;
 using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -9,6 +10,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using static Haier_E246_TestTool.Services.ReturnResult;
 
 namespace Haier_E246_TestTool.ViewModels
 {
@@ -35,6 +37,12 @@ namespace Haier_E246_TestTool.ViewModels
         {
             get => _bkLoaderPath;
             set => SetProperty(ref _bkLoaderPath, value);
+        }
+        private string _sN = "";
+        public string SN
+        {
+            get => _sN;
+            set => SetProperty(ref _sN, value);
         }
 
         // 文件夹路径
@@ -136,28 +144,118 @@ namespace Haier_E246_TestTool.ViewModels
         private async Task StartBurn()
         {
             if (IsBurning) return;
-
+            var inputBox = new InputBox();
+            inputBox.Title = "请扫描SN号";
+            if (inputBox.ShowDialog() == true)
+            {
+                SN = inputBox.Value;
+                AddLog($"[扫码] SN: {SN}");
+            }
+            else
+            {
+                AddLog("取消测试：未输入SN");
+                return;
+            }
             // 1. 检查并创建文件夹
             if (!Directory.Exists(SourceDir)) Directory.CreateDirectory(SourceDir);
             if (!Directory.Exists(TargetDir)) Directory.CreateDirectory(TargetDir);
 
-            // 2. 获取待烧录文件夹里的第一个 .bin 文件
-            var files = Directory.GetFiles(SourceDir, "*.bin");
-            if (files.Length == 0)
+            while (true)
             {
-                AddLog("错误：待烧录文件夹为空！请放入 .bin 授权文件。");
-                MessageBox.Show($"在 {SourceDir} 中未找到 .bin 文件！");
-                return;
+                // 重新获取文件列表（因为上一次循环可能移走了无效文件）
+                var files = Directory.GetFiles(SourceDir, "*.bin");
+                if (files.Length == 0)
+                {
+                    AddLog("错误：待烧录文件夹为空！请放入 .bin 授权文件。");
+                    MessageBox.Show($"在 {SourceDir} 中未找到 .bin 文件！");
+                    return;
+                }
+
+                // 锁定当前文件
+                _currentFilePathInternal = files[0];
+                CurrentFileName = Path.GetFileName(_currentFilePathInternal);
+
+                // 获取不带后缀的文件名 (License)
+                string licenseKey = Path.GetFileNameWithoutExtension(_currentFilePathInternal);
+                AddLog($"正在校验 License: {licenseKey} ...");
+
+                // 3. 调用 WebAPI 校验 License
+                bool isLicenseValid = await CheckLicenseAsync(licenseKey);
+
+                if (isLicenseValid)
+                {
+                    AddLog("License 校验通过，开始烧录...");
+                    break;
+                }
+                else
+                {
+                    AddLog($"警告: License [{licenseKey}] 无效或已使用，自动移至已处理目录。");
+                    MoveFileToTarget(_currentFilePathInternal);
+                    await Task.Delay(500); // 稍微停顿一下，防止死循环刷屏太快
+                    continue;
+                }
             }
 
-            // 3. 锁定文件
-            _currentFilePathInternal = files[0];
-            CurrentFileName = Path.GetFileName(_currentFilePathInternal);
-
-            // 4. 执行烧录
             await RunBurnProcess(_currentFilePathInternal);
         }
+        /// <summary>
+        /// 调用 WebAPI 检查 License 是否可用
+        /// </summary>
+        private async Task<bool> CheckLicenseAsync(string license)
+        {
+            try
+            {
+                var requestObj = new { License = license, SN = SN };
+                string jsonParam = JsonConvert.SerializeObject(requestObj);
 
+                string resultInfo = await WebApiHelper.WriteTestResultAsync(jsonParam);
+
+                // 解析外层
+                OuterResponse outer = JsonConvert.DeserializeObject<OuterResponse>(resultInfo);
+                if (outer != null && !string.IsNullOrEmpty(outer.resultMsg))
+                {
+                    BaseResult baseResult = JsonConvert.DeserializeObject<BaseResult>(outer.resultMsg);
+
+                    if (baseResult != null && baseResult.IsSuccess)
+                    {
+                        return true; // 可用
+                    }
+                    else
+                    {
+                        AddLog($"接口拒绝,该SN已经烧录过: {baseResult?.msg}");
+                        return false; // 不可用
+                    }
+                }
+                AddLog("接口返回格式异常");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"License 校验异常: {ex.Message}");
+                return false; 
+            }
+        }
+        /// <summary>
+        /// 辅助方法：移动文件到目标目录
+        /// </summary>
+        private void MoveFileToTarget(string filePath)
+        {
+            try
+            {
+                string fileName = Path.GetFileName(filePath);
+                string destPath = Path.Combine(TargetDir, fileName);
+
+                // 如果目标有同名文件，删除旧的
+                if (File.Exists(destPath)) File.Delete(destPath);
+
+                File.Move(filePath, destPath);
+                AddLog($"[文件移除] {fileName}");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"移动文件失败: {ex.Message}");
+            }
+        }
 
         /// <summary>
         /// 失败重试：使用当前文件再次烧录
