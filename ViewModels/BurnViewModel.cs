@@ -32,7 +32,7 @@ namespace Haier_E246_TestTool.ViewModels
             set => SetProperty(ref _baudRate, value);
         }
 
-        private string _bkLoaderPath = @"app\bk_loader.exe";
+        private string _bkLoaderPath = "";
         public string BkLoaderPath
         {
             get => _bkLoaderPath;
@@ -114,24 +114,26 @@ namespace Haier_E246_TestTool.ViewModels
 
         // 内部变量：当前文件的完整路径
         private string _currentFilePathInternal;
+        private readonly ILogService _logService;
         public BurnViewModel()
         {
-            var logService = new LogService();
+            _logService = new LogService();
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
-            // 拼接为运行目录下的子文件夹
+            BkLoaderPath = Path.Combine(baseDir, "app", "bk_loader.exe");
+            if (!File.Exists(BkLoaderPath))
+            {
+                AddLog($"【严重错误】找不到烧录工具: {BkLoaderPath}");
+            }
             SourceDir = Path.Combine(baseDir, "Pending");
             TargetDir = Path.Combine(baseDir, "Burned");
-            // 2. 【关键修正】实例化 ConfigService
-            var configService = new ConfigService(logService);
+            var configService = new ConfigService(_logService);
             _config = configService.Load();
 
             // 2. 初始化属性 (从 Config 读取)
             _portNumber = _config.BurnPort;
             _baudRate = _config.BurnBaud;
             _bkLoaderPath = _config.BkLoaderPath;
-            //_sourceDir = _config.BurnSourceDir;
-            //_targetDir = _config.BurnTargetDir;
             // 初始化时确保文件夹存在
             try
             {
@@ -294,8 +296,7 @@ namespace Haier_E246_TestTool.ViewModels
             bool success = false;
 
 
-            string appDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app"
-            );
+            string appDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app");
 
             // 在后台线程执行 Process 操作，防止卡死界面
             await Task.Run(() =>
@@ -438,15 +439,19 @@ namespace Haier_E246_TestTool.ViewModels
         // 辅助方法：在 UI 线程记录日志
         private void DispatcherLog(string msg)
         {
-            Application.Current.Dispatcher.Invoke(() => AddLog(msg));
+            Application.Current.Dispatcher.Invoke(() => AddLog(msg,false));
         }
 
-        private void AddLog(string msg)
+        private void AddLog(string msg,bool isSaveToFile = true)
         {
             string log = $"{DateTime.Now:HH:mm:ss} > {msg}";
             Logs.Add(log);
             // 限制日志条数
             if (Logs.Count > 200) Logs.RemoveAt(0);
+            if (isSaveToFile)
+            {
+                _logService?.WriteLog(msg, LogType.Info, true);
+            }
         }
     }
 }
