@@ -35,10 +35,8 @@ namespace Haier_E246_TestTool.Models
         /// 最终结论 (所有项都为1才算Pass)
         /// </summary>
         public bool IsTotalPass => Test_ReadMac == 1 && Test_Camera_Version == 1&& Test_WIFI_VERSION==1;
-
-        public int Test_Handshake { get; set; }
         /// <summary>
-        /// 写号结果
+        /// 信息核对结果
         /// </summary>
         public int YH_Result { get; set; } = 0;
     }

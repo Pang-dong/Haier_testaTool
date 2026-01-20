@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Haier_E246_TestTool.ViewModels"
         mc:Ignorable="d"
-        Title="授权文件烧录工具" Height="600" Width="850"
+        Title="Haier_E246_TestTool_V1.0" Height="700" Width="850"
         Background="#F5F5F5">
 
     <Window.DataContext>

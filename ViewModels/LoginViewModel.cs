@@ -36,13 +36,27 @@ namespace Haier_E246_TestTool.ViewModels
         public string SelectedStationType
         {
             get => _selectedStationType;
-            set => SetProperty(ref _selectedStationType, value);
+            set
+            {
+                if(SetProperty(ref _selectedStationType, value))
+                {
+                    _config.LastStationType = value; // 实时更新配置中的 LastStationType
+                    App.ConfigService.Save(_config); // 保存配置
+                }
+            }
         }
         private bool _isRememberMe;
         public bool IsRememberMe
         {
             get => _isRememberMe;
-            set => SetProperty(ref _isRememberMe, value);
+            set
+            {
+                if (SetProperty(ref _isRememberMe, value))
+                {
+                    _config.IsRememberMe = value; // 实时更新配置中的 LastStationType
+                    App.ConfigService.Save(_config); // 保存配置
+                }
+            }
         }
 
 
@@ -50,11 +64,16 @@ namespace Haier_E246_TestTool.ViewModels
         public string UserName
         {
             get => _userName;
-            set => SetProperty(ref _userName, value);
+            set
+            {
+                if (SetProperty(ref _userName, value))
+                {
+                    _config.LastUser = value; // 实时更新配置中的 LastUser
+                    App.ConfigService.Save(_config); // 保存配置
+                }
+            }
         }
 
-        // 密码通常在 View 的 CodeBehind 处理，或者通过绑定 PasswordBox 助手
-        // 这里简化处理，假设 View 传过来，或者只是个 placeholder
         public string Password { get; set; }
 
         private bool _isMesMode;
@@ -65,8 +84,8 @@ namespace Haier_E246_TestTool.ViewModels
             {
                 if (SetProperty(ref _isMesMode, value))
                 {
-                    // 切换模式时清空错误信息
-                    ErrorMessage = "";
+                    _config.IsMesMode = value; // 实时更新配置中的 LastUser
+                    App.ConfigService.Save(_config); // 保存配置
                 }
             }
         }

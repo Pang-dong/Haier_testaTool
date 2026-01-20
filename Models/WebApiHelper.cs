@@ -108,7 +108,7 @@ namespace Haier_E246_TestTool.Models
             }
         }
         /// <summary>
-        /// 获取产品相关码信息 (对应接口 GetSNCodeInfo)
+        /// 获取产品相关码信息
         /// </summary>
         /// <param name="sn">SN码</param>
         /// <param name="testType">测试类型</param>
@@ -177,11 +177,14 @@ namespace Haier_E246_TestTool.Models
                 httpClient.Timeout = TimeSpan.FromSeconds(10);
                 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-                string url = $"{_baseUrl}/api/Home/GetLicense?Lic={Uri.EscapeDataString(barcode)}";
+                // POST请求的URL通常不包含查询参数
+                string url = $"{_baseUrl}/api/Home/GetLicense";
+
+                var content = new StringContent(barcode, Encoding.UTF8, "application/json");
 
                 try
                 {
-                    HttpResponseMessage response = await httpClient.GetAsync(url, cancellationToken);
+                    HttpResponseMessage response = await httpClient.PostAsync(url, content, cancellationToken);
                     response.EnsureSuccessStatusCode();
                     return await response.Content.ReadAsStringAsync();
                 }

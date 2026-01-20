@@ -15,21 +15,50 @@ using static Haier_E246_TestTool.Services.ReturnResult;
 namespace Haier_E246_TestTool.ViewModels
 {
     // 继承 ObservableObject 以使用 SetProperty
-    public  partial class BurnViewModel : ObservableObject
+    public partial class BurnViewModel : ObservableObject
     {
+        /// <summary>
+        /// License 校验结果枚举
+        /// </summary>
+        public enum LicenseCheckResult
+        {
+            Valid,              // 有效，可以烧录
+            ExplicitFailure,    // 接口明确返回失败
+            NetworkError        // 网络异常、超时、格式错误等
+        }
         private readonly AppConfig _config;
-        private string _portNumber = "COM3";
+
+        private string _portNumber = "3";
         public string PortNumber
         {
             get => _portNumber;
-            set => SetProperty(ref _portNumber, value);
+            set
+            {
+                if (SetProperty(ref _portNumber, value))
+                {
+                    // 1. 同步更新内存中的配置对象
+                    _config.BurnPort = value;
+
+                    new ConfigService(_logService).Save(_config);
+                }
+            }
         }
 
-        private string _baudRate = "921600";
+        private string _baudRate = "150000";
         public string BaudRate
         {
             get => _baudRate;
-            set => SetProperty(ref _baudRate, value);
+            set
+            {
+                // SetProperty 返回 true 表示值确实发生了改变
+                if (SetProperty(ref _baudRate, value))
+                {
+                    // 1. 同步更新内存中的配置对象
+                    _config.BurnBaud = value;
+
+                    new ConfigService(_logService).Save(_config);
+                }
+            }
         }
 
         private string _bkLoaderPath = "";
@@ -155,6 +184,12 @@ namespace Haier_E246_TestTool.ViewModels
             if (inputBox.ShowDialog() == true)
             {
                 SN = inputBox.Value;
+                if(SN.Length !=17)
+                {
+                    AddLog("SN号不规范！");
+                    MessageBox.Show("SN号不规范！");
+                    return;
+                }
                 AddLog($"[扫码] SN: {SN}");
             }
             else
@@ -162,13 +197,6 @@ namespace Haier_E246_TestTool.ViewModels
                 AddLog("取消测试：未输入SN");
                 return;
             }
-            //var currentResult = new TestResultModel();
-            //currentResult.Tset_Linsence = 1;
-            //string resut = JsonConvert.SerializeObject(currentResult);
-            //var writeService = new WriteTestResultService();
-            //string result = writeService.WriteJsonResult(resut,"烧录工站", _config, "5C738E9CF3",SN);
-
-            //string a = await WebApiHelper.WriteTestResultAsync(result);
             // 1. 检查并创建文件夹
             if (!Directory.Exists(SourceDir)) Directory.CreateDirectory(SourceDir);
             if (!Directory.Exists(TargetDir)) Directory.CreateDirectory(TargetDir);
@@ -192,33 +220,43 @@ namespace Haier_E246_TestTool.ViewModels
                 string licenseKey = Path.GetFileNameWithoutExtension(_currentFilePathInternal);
                 AddLog($"正在校验 License: {licenseKey} ...");
 
-                // 3. 调用 WebAPI 校验 License
-                bool isLicenseValid = await CheckLicenseAsync(licenseKey);
+                //调用 WebAPI 校验 License
+                LicenseCheckResult isLicenseValid = await CheckLicenseAsync(SN,licenseKey);
 
-                if (isLicenseValid)
+                if (isLicenseValid == LicenseCheckResult.Valid)
                 {
                     AddLog("License 校验通过，开始烧录...");
                     break;
                 }
-                else
+                else if (isLicenseValid == LicenseCheckResult.ExplicitFailure)
                 {
                     AddLog($"警告: License [{licenseKey}] 无效或已使用，自动移至已处理目录。");
                     MoveFileToTarget(_currentFilePathInternal);
-                    await Task.Delay(500); // 稍微停顿一下，防止死循环刷屏太快
+                    await Task.Delay(500);
                     continue;
                 }
+                else // NetworkError
+                {
+                    AddLog("网络连接异常，请检查网络后重试。");
+                    return; // 直接退出，不继续处理其他文件
+                }
             }
-
             await RunBurnProcess(_currentFilePathInternal);
         }
         /// <summary>
         /// 调用 WebAPI 检查 License 是否可用
         /// </summary>
-        private async Task<bool> CheckLicenseAsync(string license)
+        private async Task<LicenseCheckResult> CheckLicenseAsync(string sn,string license)
         {
             try
             {
-                string resultInfo = await WebApiHelper.GetLisenceInfonAsync(license);
+                var Checkbody = new
+                {
+                    sn = sn,
+                    license = license
+                };
+                string json = JsonConvert.SerializeObject(Checkbody);
+                string resultInfo = await WebApiHelper.GetLisenceInfonAsync(json);
 
                 // 解析外层
                 OuterResponse outer = JsonConvert.DeserializeObject<OuterResponse>(resultInfo);
@@ -227,21 +265,21 @@ namespace Haier_E246_TestTool.ViewModels
                     if (outer.status.Equals("0"))
                     {
                         AddLog($"失败:接口拒绝,该SN已经烧录过: {outer.resultMsg}");
-                        return false;
+                        return LicenseCheckResult.ExplicitFailure; // 失败
                     }
                     else
                     {
                         AddLog("校验成功");
-                        return true;
+                        return LicenseCheckResult.Valid; // 有效
                     }
                 }
                 AddLog("接口返回格式异常");
-                return false;
+                return LicenseCheckResult.NetworkError; // 网络或格式错误
             }
             catch (Exception ex)
             {
                 AddLog($"License 校验异常: {ex.Message}");
-                return false; 
+                return LicenseCheckResult.NetworkError; // 网络异常
             }
         }
         /// <summary>
@@ -287,17 +325,17 @@ namespace Haier_E246_TestTool.ViewModels
         {
             IsBurning = true;
             CanRetry = false;
-            StatusColor = new SolidColorBrush(Colors.Orange); // 进行中：橙色
-            StatusText = "BURNING...";
-            Logs.Clear();
+            StatusColor = new SolidColorBrush(Colors.Orange);
+            StatusText = "正在烧录...";
+            Logs.Clear(); // 每次开始清理日志
             AddLog($"准备烧录: {Path.GetFileName(authFile)}");
-            bool success = false;
+
+            bool burnSuccess = false;
             string appDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app");
 
-            // 在后台线程执行 Process 操作，防止卡死界面
+            // --- 第一步：执行物理烧录 ---
             await Task.Run(() =>
             {
-                // 这里填入你的固定文件路径
                 string mainBin = Path.Combine(appDir, _config.MainBin);
                 string littleFs = Path.Combine(appDir, _config.LittlefsBin);
 
@@ -306,44 +344,140 @@ namespace Haier_E246_TestTool.ViewModels
                               $"{authFile}@0x72c000-0xa00," +
                               $"{littleFs}@0x74d000-0x70000 " +
                               $"--reboot 1 --fast-link 1";
-                success = ExecuteProcess(BkLoaderPath, args);
+                burnSuccess = ExecuteProcess(BkLoaderPath, args);
             });
 
-            IsBurning = false;
-
-            if (success)
+            // --- 第二步：判断烧录结果并处理 MES 上传 ---
+            if (burnSuccess)
             {
-                // --- 成功：变绿，移走文件 ---
-                StatusColor = new SolidColorBrush(Colors.LightGreen);
-                StatusText = "PASS";
-                AddLog("烧录成功！");
-
-                try
+                AddLog("硬件烧录成功，开始上传数据...");
+                StatusText = "上传中..."; // 状态改为上传中
+                bool uploadSuccess = false;
+                if (_config.IsMesMode)
                 {
-                    string destPath = Path.Combine(TargetDir, Path.GetFileName(authFile));
-                    // 如果目标有同名文件，覆盖
-                    if (File.Exists(destPath)) File.Delete(destPath);
+                    // 获取 License Key
+                    string licenseKey = Path.GetFileNameWithoutExtension(authFile);
 
-                    File.Move(authFile, destPath);
-                    AddLog($"[文件移动] 已移至: {TargetDir}");
-
-                    // 清理当前状态，准备下一个
-                    _currentFilePathInternal = null;
-                    CanRetry = false;
+                    // 调用刚才封装好的上传方法
+                    uploadSuccess = await UploadResultToMesAsync(licenseKey);
                 }
-                catch (Exception ex)
+                else
                 {
-                    AddLog($"警告：移动文件失败 {ex.Message}");
+                    uploadSuccess = true;
+                }
+
+                if (uploadSuccess)
+                {
+                    IsBurning = false;
+                    StatusColor = new SolidColorBrush(Colors.LightGreen);
+                    StatusText = "PASS";
+                    AddLog("=== 流程全部完成 ===");
+
+                    // 只有全部成功才移动文件
+                    MoveFileAfterSuccess(authFile);
+                }
+                else
+                {
+                    HandleFailure("MES上传失败，请检查网络或重试");
                 }
             }
             else
             {
-                // --- 失败：变红，允许重试 ---
-                StatusColor = new SolidColorBrush(Colors.Red);
-                StatusText = "FAIL";
-                AddLog("烧录失败！");
-                CanRetry = true; // 亮起重试按钮
+                // === 烧录本身失败 ===
+                HandleFailure("程序烧录失败");
             }
+        }
+        /// <summary>
+        /// 统一处理失败逻辑
+        /// </summary>
+        private void HandleFailure(string reason)
+        {
+            IsBurning = false;
+            StatusColor = new SolidColorBrush(Colors.Red);
+            StatusText = "FAIL"; // 界面显示大大的 FAIL
+            AddLog($"[流程终止] {reason}");
+
+            CanRetry = true;
+        }
+
+        /// <summary>
+        /// 成功后的文件清理工作
+        /// </summary>
+        private void MoveFileAfterSuccess(string srcFile)
+        {
+            try
+            {
+                string destPath = Path.Combine(TargetDir, Path.GetFileName(srcFile));
+                if (File.Exists(destPath)) File.Delete(destPath);
+
+                File.Move(srcFile, destPath);
+                AddLog($"[文件归档] 已移至: {TargetDir}");
+
+                // 清理当前状态，准备下一个
+                _currentFilePathInternal = null;
+                CanRetry = false;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"警告：文件移动失败 {ex.Message}，但不影响测试结果");
+            }
+        }
+        /// <summary>
+        /// 上传测试结果到 MES，包含自动重试机制
+        /// </summary>
+        /// <param name="licenseKey">授权文件名</param>
+        /// <returns>上传成功返回 true</returns>
+        private async Task<bool> UploadResultToMesAsync(string licenseKey)
+        {
+            // 1. 准备数据
+            var currentResult = new TestResultModel();
+            currentResult.Tset_Linsence = 1; // 设定测试结果
+            string resultJson = JsonConvert.SerializeObject(currentResult);
+
+            var writeService = new WriteTestResultService();
+            // 生成最终提交给API的报文
+            string finalPayload = writeService.WriteJsonResult(resultJson, "烧录工站", _config, licenseKey, SN);
+
+            int maxRetries = 2; // 最大重试次数
+
+            for (int i = 0; i < maxRetries; i++)
+            {
+                try
+                {
+                    if (i > 0) AddLog($"正在第 {i + 1} 次尝试上传 MES...");
+
+                    // 2. 调用接口
+                    string resultInfo = await WebApiHelper.WriteTestResultAsync(finalPayload);
+
+                    // 3. 解析结果 (使用你提供的逻辑) 
+                    OuterResponse outer = JsonConvert.DeserializeObject<OuterResponse>(resultInfo);
+                    if (outer != null && !string.IsNullOrEmpty(outer.resultMsg))
+                    {
+                        BaseResult baseResult = JsonConvert.DeserializeObject<BaseResult>(outer.resultMsg);
+
+                        if (baseResult != null && baseResult.IsSuccess)
+                        {
+                            AddLog($"MES上传成功: {baseResult.msg}");
+                            return true; // 成功，直接返回
+                        }
+                        else
+                        {
+                            AddLog($"MES拒绝 (尝试 {i + 1}/{maxRetries}): {baseResult?.msg}");
+                        }
+                    }
+                    else
+                    {
+                        AddLog($"MES返回格式异常 (尝试 {i + 1}/{maxRetries})");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"MES网络异常 (尝试 {i + 1}/{maxRetries}): {ex.Message}");
+                }
+                if (i < maxRetries - 1) await Task.Delay(500);
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -380,7 +514,6 @@ namespace Haier_E246_TestTool.ViewModels
 
                     // 成功/失败判定逻辑
                     if (e.Data.Contains("All Finished Successfully") ||
-                        e.Data.Contains("Writing Flash OK") ||
                         e.Data.Contains("Burn completed successfully"))
                     {
                         isSuccess = true;
@@ -433,7 +566,7 @@ namespace Haier_E246_TestTool.ViewModels
         // 辅助方法：在 UI 线程记录日志
         private void DispatcherLog(string msg)
         {
-            Application.Current.Dispatcher.Invoke(() => AddLog(msg,false));
+            Application.Current.Dispatcher.Invoke(() => AddLog(msg, false));
         }
 
         private void AddLog(string msg, bool isSaveToFile = true)
@@ -463,10 +596,23 @@ namespace Haier_E246_TestTool.ViewModels
         }
         private void UpdateUiLog(string logContent, SolidColorBrush color)
         {
-            // 创建对象并添加
+            string progressKey = "Writing Flash";
+
+            bool isCurrentProgress = logContent.Contains(progressKey);
+
+            if (Logs.Count > 0 && isCurrentProgress)
+            {
+                var lastItem = Logs[Logs.Count - 1];
+
+                if (lastItem.Text.Contains(progressKey))
+                {
+                    Logs[Logs.Count - 1] = new LogItem { Text = logContent, Color = color };
+                    return; // 直接返回，不再执行下面的 Add
+                }
+            }
+
             Logs.Add(new LogItem { Text = logContent, Color = color });
 
-            // 限制行数
             if (Logs.Count > 200) Logs.RemoveAt(0);
         }
         /// <summary>

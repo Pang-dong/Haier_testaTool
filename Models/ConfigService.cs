@@ -47,7 +47,6 @@ namespace Haier_E246_TestTool.Services
         {
             try
             {
-                // 序列化为 JSON，Indented 表示格式化（带缩进，方便人工阅读）
                 string json = JsonConvert.SerializeObject(config, Formatting.Indented);
                 File.WriteAllText(_configPath, json);
             }

@@ -13,10 +13,6 @@ namespace Haier_E246_TestTool
         public static ConfigService ConfigService;
         public static AppConfig AppConfig;
 
-        // 这两个是窗口和VM，不需要静态，保持原样或根据需要修改
-        private MainViewModel _mainViewModel;
-        private MainWindow _mainWindow;
-
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);

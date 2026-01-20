@@ -67,8 +67,6 @@ namespace Haier_E246_TestTool.Services
             sb.Append("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
             sb.Append("<soap:Envelope xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\">");
             sb.Append("<soap:Body>");
-
-            // 方法名节点
             sb.Append($"<{methodName} xmlns=\"{ns}\">");
 
             // 参数节点
