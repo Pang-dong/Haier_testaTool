@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Haier_E246_TestTool.Services;
 using System.Collections.ObjectModel;
@@ -57,7 +57,12 @@ namespace Haier_E246_TestTool.ViewModels
             }
         }
         private bool _isAutoTesting = false;
-
+        private Visibility _autoTestVisibility = Visibility.Visible;
+        public Visibility AutoTestVisibility
+        {
+            get => _autoTestVisibility;
+            set => SetProperty(ref _autoTestVisibility, value);
+        }
         public bool IsAutoTesting
         {
             get => _isAutoTesting;
@@ -207,9 +212,12 @@ namespace Haier_E246_TestTool.ViewModels
                 TestCommands.Add(new TestCommandItem("获取MAC", 0x03));
                 TestCommands.Add(new TestCommandItem("获取WiFi版本", 0x02));
                 TestCommands.Add(new TestCommandItem("获取Camera版本", 0x01));
+                //TestCommands.Add(new TestCommandItem("打开AP模式", 0x08));
+                //TestCommands.Add(new TestCommandItem("打开视频", 0x09));
             }
             else
             {
+                AutoTestVisibility = Visibility.Collapsed;
                 TestCommands.Add(new TestCommandItem("信息核对", 0xFF));
             }
         }
@@ -229,7 +237,7 @@ namespace Haier_E246_TestTool.ViewModels
             {
                 var packetamc = new DataPacket(0x03);
                 _serialService.SendData(packetamc.ToBytes());
-                await Task.Delay(500);
+                await Task.Delay(1000);
                 await ExecuteInfoCheck(item);
                 return;
             }
@@ -244,11 +252,17 @@ namespace Haier_E246_TestTool.ViewModels
         /// </summary>
         private async Task ExecuteInfoCheck(TestCommandItem item)
         {
-            // 1. 基础校验：SN 和 设备本地 MAC 必须存在
-            if (string.IsNullOrEmpty(SN) || SN == "等待获取...")
+
+            var inputBoxsn = new InputBox();
+            inputBoxsn.Title = "请扫描SN号";
+            if (inputBoxsn.ShowDialog() == true)
             {
-                MessageBox.Show("请先扫描SN号！");
-                AddLog("[核对] 失败：未扫描SN");
+                SN = inputBoxsn.Value;
+                AddLog($"[扫码] SN: {SN}");
+            }
+            else
+            {
+                AddLog("取消测试：未输入SN");
                 return;
             }
 
@@ -264,32 +278,26 @@ namespace Haier_E246_TestTool.ViewModels
 
             try
             {
-                AddLog($"[核对] 1/3 正在查询MES信息 (SN: {SN})...");
-                MesMessage = "正在获取MES信息...";
                 item.ResetColor();
 
-                // 2. 调用 WebApi 获取 MES 端的 MAC
-                string jsonResponse = await WebApiHelper.GetSNCodeInfoAsync(SN, "信息核对");
-
-                if (string.IsNullOrEmpty(jsonResponse))
+                var inputBox1 = new InputBox();
+                inputBox1.Title = "请扫描贴在外壳MAC条码";
+                string mesMac = "";
+                if (inputBox1.ShowDialog() == true)
                 {
-                    HandleCheckFail(item, "MES接口返回为空");
+                    mesMac = inputBox1.Value;
+                    AddLog($"[核对] 1/3 扫描贴纸MAC: {mesMac}");
+                }
+                else
+                {
+                    AddLog("[核对] 操作取消：未扫描贴在外壳贴纸MAC");
+                    item.ResetColor();
                     return;
                 }
 
-                JObject jsonObj = JObject.Parse(jsonResponse);
-                string mesMac = jsonObj["MAC"]?.ToString(); // 假设字段名叫 MAC
-
-                if (string.IsNullOrEmpty(mesMac))
-                {
-                    HandleCheckFail(item, $"MES返回数据中无MAC字段。原始数据: {jsonResponse}");
-                    return;
-                }
-                AddLog($"[核对] MES返回MAC: {mesMac}");
 
                 var inputBox = new InputBox();
-                inputBox.Title = "请扫描贴纸MAC"; // 设置弹窗标题提示用户
-                                             // 如果您修改了 InputBox 代码公开了 Label，可以设置: inputBox.Lbl_title.Content = "扫描贴纸MAC:";
+                inputBox.Title = "请扫描贴纸MAC"; 
 
                 string stickerMac = "";
                 if (inputBox.ShowDialog() == true)
@@ -334,6 +342,7 @@ namespace Haier_E246_TestTool.ViewModels
 
                         if (baseResult != null && baseResult.IsSuccess)
                         {
+
                             AddLog("MES上传成功");
                             MesMessage = $"MES上传成功: {baseResult.msg}"; // 更新画布信息
                         }
@@ -463,7 +472,7 @@ namespace Haier_E246_TestTool.ViewModels
                 // 2. 实例化服务并处理数据
                 var writeService = new WriteTestResultService();
 
-                string finalJson = writeService.EnrichJsonData(rawJson,CurrentConfig,"功能测试",DeviceMac,WiFiVersion, CameraVersion,SN);
+                string finalJson = writeService.EnrichJsonData(rawJson,CurrentConfig,"写号",DeviceMac,WiFiVersion, CameraVersion,SN);
                 if (IsMesMode)
                 {
                     if (isTotalPass)
@@ -617,6 +626,7 @@ namespace Haier_E246_TestTool.ViewModels
             {
                 if (UiLogs.Count > 1000) UiLogs.RemoveAt(0);
                 UiLogs.Add(msg);
+                //_logService.WriteLog(msg);
             }
         }
 

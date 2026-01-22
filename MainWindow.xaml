@@ -82,6 +82,7 @@
                         Command="{Binding StartAutoTestCommand}"
                         IsEnabled="{Binding IsConnected}"
                         Height="50" Margin="0,20,0,0" 
+                        Visibility="{Binding AutoTestVisibility}"
                         Background="#E1F5FE" FontWeight="Bold" FontSize="14"/>
             </StackPanel>
         </Border>

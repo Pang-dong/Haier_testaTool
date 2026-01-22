@@ -79,6 +79,7 @@
     <Compile Include="Models\ReturnResult.cs" />
     <Compile Include="Models\TestCommandItem.cs" />
     <Compile Include="Models\WebApiHelper.cs" />
+    <Compile Include="Services\FindPath.cs" />
     <Compile Include="Services\PlayVideoHelper.cs" />
     <Compile Include="Models\TestResultModel.cs" />
     <Compile Include="Protocols\Crc16.cs" />

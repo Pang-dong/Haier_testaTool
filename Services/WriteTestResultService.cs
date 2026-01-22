@@ -20,10 +20,11 @@ namespace Haier_E246_TestTool.Services
                 }
                 jsonObject["TestType"] = testStation;
                 jsonObject["MAC"] = deviceMac;
-                jsonObject["MAC1"] = wifiVer;
+                jsonObject["SSID"] = wifiVer;
                 jsonObject["MAC2"] = cameraVer;
                 jsonObject["SN"] = sn;
                 jsonObject["ZJ_Result"] = 1;
+                jsonObject["XH_Result"] = 1;
 
                 return jsonObject.ToString(Newtonsoft.Json.Formatting.None);
             }
