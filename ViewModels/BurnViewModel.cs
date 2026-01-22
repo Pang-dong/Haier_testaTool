@@ -144,6 +144,7 @@ namespace Haier_E246_TestTool.ViewModels
         // 内部变量：当前文件的完整路径
         private string _currentFilePathInternal;
         private readonly ILogService _logService;
+        private readonly FindPath findPath = new FindPath();
         public BurnViewModel()
         {
             _logService = new LogService();
@@ -336,8 +337,8 @@ namespace Haier_E246_TestTool.ViewModels
             // --- 第一步：执行物理烧录 ---
             await Task.Run(() =>
             {
-                string mainBin = Path.Combine(appDir, _config.MainBin);
-                string littleFs = Path.Combine(appDir, _config.LittlefsBin);
+                string mainBin =findPath.GetFilePathByKeyword(appDir, "all-app", _config.MainBin);
+                string littleFs =findPath.GetFilePathByKeyword(appDir, "littlefs", _config.LittlefsBin);
 
                 string args = $"download -p {PortNumber} -b {BaudRate} --mainBin-multi " +
                               $"{mainBin}@0x0-0x3ff600," +
