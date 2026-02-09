@@ -18,8 +18,6 @@ namespace Haier_E246_TestTool.Models
         private const string DefaultPassword = "123456";
         private static readonly log4net.ILog logger = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         private static string _baseUrl;
-
-        // 在静态构造函数或第一次使用时初始化 BaseUrl
         static WebApiHelper()
         {
             _baseUrl = GetAvailableBaseUrl();

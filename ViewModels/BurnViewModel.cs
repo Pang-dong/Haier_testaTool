@@ -147,6 +147,7 @@ namespace Haier_E246_TestTool.ViewModels
         private readonly FindPath findPath = new FindPath();
         public BurnViewModel()
         {
+
             _logService = new LogService();
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
@@ -159,7 +160,6 @@ namespace Haier_E246_TestTool.ViewModels
             TargetDir = Path.Combine(baseDir, "Burned");
             var configService = new ConfigService(_logService);
             _config = configService.Load();
-
             // 2. 初始化属性 (从 Config 读取)
             _portNumber = _config.BurnPort;
             _baudRate = _config.BurnBaud;
@@ -184,8 +184,8 @@ namespace Haier_E246_TestTool.ViewModels
             inputBox.Title = "请扫描SN号";
             if (inputBox.ShowDialog() == true)
             {
-                SN = inputBox.Value;
-                if(SN.Length !=17)
+                SN = inputBox.Value.Replace("\r", "").Replace("\n", "").Trim();
+                if (SN.Length !=17)
                 {
                     AddLog("SN号不规范！");
                     MessageBox.Show("SN号不规范！");
@@ -330,7 +330,7 @@ namespace Haier_E246_TestTool.ViewModels
             StatusText = "正在烧录...";
             Logs.Clear(); // 每次开始清理日志
             AddLog($"准备烧录: {Path.GetFileName(authFile)}");
-
+              
             bool burnSuccess = false;
             string appDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app");
 
@@ -599,7 +599,7 @@ namespace Haier_E246_TestTool.ViewModels
         {
             string progressKey = "Writing Flash";
 
-            bool isCurrentProgress = logContent.Contains(progressKey);
+            bool isCurrentProgress = logContent.Contains(progressKey)||logContent.Contains("Erasing");
 
             if (Logs.Count > 0 && isCurrentProgress)
             {

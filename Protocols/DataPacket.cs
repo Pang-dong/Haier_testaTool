@@ -34,8 +34,8 @@ namespace Haier_E246_TestTool.Protocols
             bodyBytes[offset++] = CommandId;
 
             // Length (2 bytes, Little Endian
-            bodyBytes[offset++] = (byte)((payloadLength >> 8) & 0xFF);
             bodyBytes[offset++] = (byte)(payloadLength & 0xFF);
+            bodyBytes[offset++] = (byte)((payloadLength >> 8) & 0xFF);
             
             // Payload (N bytes)
             if (Payload.Length > 0)

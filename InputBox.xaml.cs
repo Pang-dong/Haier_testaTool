@@ -53,7 +53,9 @@ namespace Haier_E246_TestTool
         {
             if (e.Key == Key.Enter)
             {
-                Btn_Confirm.Focus();
+                Value = TBox_value.Text.Trim();   // 建议 Trim，避免带回车/空格
+                DialogResult = true;              // ShowDialog 会立刻返回 true，并自动关闭窗口
+                e.Handled = true;
             }
         }
 

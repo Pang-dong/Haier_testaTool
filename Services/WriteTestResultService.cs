@@ -44,7 +44,7 @@ namespace Haier_E246_TestTool.Services
                 {
                     jsonObject["Operator"] =appConfig.LastUser;
                 }
-                jsonObject["TestType"] = Workstation;
+                jsonObject["TestType"] = Workstation;  
                 jsonObject["ZJ_Result"] = 1;
                 jsonObject["UUID"] = Lisence;
                 jsonObject["ComputerNo"] =appConfig.FtpIp;
@@ -72,6 +72,7 @@ namespace Haier_E246_TestTool.Services
                 jsonObject["ZJ_Result"] = 1;
                 jsonObject["SN"] = sn;
                 jsonObject["ComputerNo"] = appConfig.FtpIp;
+                jsonObject["YH_Result"] = 1;
 
                 return jsonObject.ToString(Newtonsoft.Json.Formatting.None);
             }

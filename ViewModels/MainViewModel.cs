@@ -16,6 +16,7 @@ using System.Linq;
 using Newtonsoft.Json;
 using static Haier_E246_TestTool.Services.ReturnResult;
 using Newtonsoft.Json.Linq;
+using System.Threading;
 
 namespace Haier_E246_TestTool.ViewModels
 {
@@ -27,8 +28,10 @@ namespace Haier_E246_TestTool.ViewModels
         private readonly PacketParser _parser = new PacketParser();
         private readonly ILogService _logService;
         private readonly PlayVideoHelper _videoHelper = new PlayVideoHelper();
+        private readonly TestResultManager _testResultManager = new TestResultManager();
         public ObservableCollection<TestCommandItem> TestCommands { get; } = new ObservableCollection<TestCommandItem>();
         private AppConfig CurrentConfig { get; set; }
+        private bool IsTotalPass { get; set; }  
 
         private ObservableCollection<string> _comPorts;
         public ObservableCollection<string> ComPorts
@@ -214,6 +217,8 @@ namespace Haier_E246_TestTool.ViewModels
                 TestCommands.Add(new TestCommandItem("获取Camera版本", 0x01));
                 //TestCommands.Add(new TestCommandItem("打开AP模式", 0x08));
                 //TestCommands.Add(new TestCommandItem("打开视频", 0x09));
+                ////TestCommands.Add(new TestCommandItem("获取设备IP", 0x0B));
+                //TestCommands.Add(new TestCommandItem("获取lisence", 0x05));
             }
             else
             {
@@ -227,7 +232,6 @@ namespace Haier_E246_TestTool.ViewModels
             if (item == null) return;
             if (!IsConnected) { AddLog("串口未打开"); return; }
 
-            // 拦截逻辑：如果不是握手命令(0x00)且未握手，则拦截
             if (item.CommandId != 0x00 && !IsHandshaked)
             {
                 MessageBox.Show("请先执行握手(进入产测模式)！");
@@ -241,6 +245,7 @@ namespace Haier_E246_TestTool.ViewModels
                 await ExecuteInfoCheck(item);
                 return;
             }
+            _testResultManager.RecordTestResult(item.CommandId, false, null, "等待响应");
             // 发送数据
             var packet = new DataPacket(item.CommandId);
             _serialService.SendData(packet.ToBytes());
@@ -294,8 +299,6 @@ namespace Haier_E246_TestTool.ViewModels
                     item.ResetColor();
                     return;
                 }
-
-
                 var inputBox = new InputBox();
                 inputBox.Title = "请扫描贴纸MAC"; 
 
@@ -327,13 +330,16 @@ namespace Haier_E246_TestTool.ViewModels
                     ResultText = "PASS";
                     ResultColor = Brushes.Green;
                     item.SetSuccess();
+                    _testResultManager.RecordTestResult(item.CommandId, true, successMsg);
                     AddLog($"[核对] 3/3 成功：{successMsg.Replace("\r\n", " | ")}");
+
                     var currentResult = new TestResultModel();
                     currentResult.YH_Result = 1;
                     string resut = JsonConvert.SerializeObject(currentResult);
                     var writeService = new WriteTestResultService();
-                    string result = writeService.WriteJsonYHResult(resut, "信息核对", CurrentConfig,SN);
+                    string result = writeService.WriteJsonYHResult(resut, "信息核对", CurrentConfig, SN);
                     string resultInfo = await WebApiHelper.WriteTestResultAsync(result);
+
                     // 解析外层响应
                     OuterResponse outer = JsonConvert.DeserializeObject<OuterResponse>(resultInfo);
                     if (outer != null && !string.IsNullOrEmpty(outer.resultMsg))
@@ -342,7 +348,6 @@ namespace Haier_E246_TestTool.ViewModels
 
                         if (baseResult != null && baseResult.IsSuccess)
                         {
-
                             AddLog("MES上传成功");
                             MesMessage = $"MES上传成功: {baseResult.msg}"; // 更新画布信息
                         }
@@ -350,7 +355,6 @@ namespace Haier_E246_TestTool.ViewModels
                         {
                             AddLog($"MES上传失败: {baseResult?.msg}");
                             MesMessage = $"MES上传失败: {baseResult?.msg}"; // 更新画布信息
-
                             ResultText = "FAIL (MES)";
                             ResultColor = Brushes.Red;
                         }
@@ -374,6 +378,7 @@ namespace Haier_E246_TestTool.ViewModels
                     ResultText = "FAIL";
                     ResultColor = Brushes.Red;
                     item.SetFail();
+                    _testResultManager.RecordTestResult(item.CommandId, false, sb.ToString());
                     AddLog($"[核对] 3/3 失败：{sb.ToString().Replace("\r\n", " ")}");
                 }
             }
@@ -382,29 +387,79 @@ namespace Haier_E246_TestTool.ViewModels
                 HandleCheckFail(item, $"异常: {ex.Message}");
             }
         }
+        /// <summary>
+        /// 响应数据方法
+        /// </summary>
+        /// <param name="commandId"></param>
+        /// <param name="payload"></param>
+        /// <returns></returns>
+        private bool ValidateResponse(byte commandId, byte[] payload)
+        {
+            switch (commandId)
+            {
+                case 0x00: // 握手
+                    return true; // 握手成功
 
-        // 辅助方法：处理失败逻辑
+                case 0x03: // MAC地址
+                    string mac = BitConverter.ToString(payload).Replace("-", "");
+                    return mac.Length == 12;
+                case 0x02: // WiFi版本
+                    string wifiVersion = Encoding.ASCII.GetString(payload);
+                    return !string.IsNullOrWhiteSpace(wifiVersion);
+
+                case 0x01: // Camera版本
+                    string cameraVersion = Encoding.ASCII.GetString(payload);
+                    return !string.IsNullOrWhiteSpace(cameraVersion);
+
+                case 0x09: // RTSP视频
+                    string rtsp = Encoding.ASCII.GetString(payload);
+                    return !string.IsNullOrWhiteSpace(rtsp);
+
+                case 0x08: // AP模式IP
+                    string apIp = Encoding.ASCII.GetString(payload);
+                    return !string.IsNullOrWhiteSpace(apIp);
+                case 0x0B:
+                    string apPort = Encoding.ASCII.GetString(payload);
+                    return !string.IsNullOrWhiteSpace(apPort);
+                default:
+                    return true;
+            }
+        }
+
+        /// <summary>
+        /// 失败时的方法
+        /// </summary>
+        /// <param name="item"></param>
+        /// <param name="errorMsg"></param>
         private void HandleCheckFail(TestCommandItem item, string errorMsg)
         {
             MesMessage = errorMsg;
             ResultText = "ERROR";
             ResultColor = Brushes.Red;
             item.SetFail();
+            _testResultManager.RecordTestResult(item.CommandId, false, null, errorMsg);
             AddLog($"[核对] {errorMsg}");
         }
 
-        // 辅助方法：MAC地址归一化 (去冒号、横杠、空格，转大写)
+        /// <summary>
+        /// 辅助方法：MAC地址归一化 (去冒号、横杠、空格，转大写)
+        /// </summary>
+        /// <param name="mac"></param>
+        /// <returns></returns>
         private string NormalizeMac(string mac)
         {
             if (string.IsNullOrEmpty(mac)) return "";
             return mac.Replace(":", "").Replace("-", "").Replace(" ", "").Trim().ToUpper();
         }
-
+        /// <summary>
+        /// 开始自动测试
+        /// </summary>
+        /// <returns></returns>
         [RelayCommand]
         private async Task StartAutoTest()
         {
             var inputBox = new InputBox();
-            inputBox.Title = "请扫描SN号"; 
+            inputBox.Title = "请扫描SN号";
             if (inputBox.ShowDialog() == true)
             {
                 SN = inputBox.Value;
@@ -422,9 +477,10 @@ namespace Haier_E246_TestTool.ViewModels
             ResultText = "TESTING";
             ResultColor = Brushes.Orange;
             MesMessage = "正在执行自动测试...";
-            bool isTotalPass = true;
+
             // 初始化结果记录
             var currentResult = new TestResultModel();
+            _testResultManager.Reset(); // 重置测试结果管理器
 
             // 重置所有颜色
             foreach (var cmd in TestCommands) cmd.ResetColor();
@@ -443,19 +499,21 @@ namespace Haier_E246_TestTool.ViewModels
 
                     if (success)
                     {
-                        cmd.SetSuccess(); 
+                        cmd.SetSuccess();
+                        // 记录成功到TestResultModel
                         if (cmd.CommandId == 0x01) currentResult.Test_Camera_Version = 1;
                         if (cmd.CommandId == 0x02) currentResult.Test_WIFI_VERSION = 1;
-                        if (cmd.CommandId == 0x0) currentResult.Test_ReadMac = 1;
+                        if (cmd.CommandId == 0x03) currentResult.Test_ReadMac = 1;
                     }
                     else
                     {
-                        cmd.SetFail(); // 变红
-                        isTotalPass = false;
+                        cmd.SetFail();
                     }
                     await Task.Delay(500);
                 }
-                if (isTotalPass)
+
+                // 根据TestResultManager判断总体结果
+                if (_testResultManager.AllTestPassed())
                 {
                     ResultText = "PASS";
                     ResultColor = Brushes.Green;
@@ -467,15 +525,29 @@ namespace Haier_E246_TestTool.ViewModels
                     ResultColor = Brushes.Red;
                     MesMessage = "本地测试失败，请检查红色的测试项。";
                 }
+
+                // 添加测试结果统计日志
+                AddLog($"测试统计: {_testResultManager.GetPassCount()}/{_testResultManager.GetTotalCount()} 项通过");
+
+                // 如果有失败的测试项，记录失败原因
+                if (_testResultManager.AnyTestFailed())
+                {
+                    var allResults = _testResultManager.GetAllResults();
+                    foreach (var result in allResults.Values.Where(r => !r.Success))
+                    {
+                        AddLog($"命令 0x{result.CommandId:X2} 失败: {result.ErrorMessage ?? "未知原因"}");
+                    }
+                }
+
                 string rawJson = JsonConvert.SerializeObject(currentResult);
 
                 // 2. 实例化服务并处理数据
                 var writeService = new WriteTestResultService();
 
-                string finalJson = writeService.EnrichJsonData(rawJson,CurrentConfig,"写号",DeviceMac,WiFiVersion, CameraVersion,SN);
+                string finalJson = writeService.EnrichJsonData(rawJson, CurrentConfig, "写号", DeviceMac, WiFiVersion, CameraVersion, SN);
                 if (IsMesMode)
                 {
-                    if (isTotalPass)
+                    if (_testResultManager.AllTestPassed())
                     {
                         AddLog("正在上传MES功能测试数据(请等待)...");
                         string resultInfo = await WebApiHelper.WriteTestResultAsync(finalJson);
@@ -495,9 +567,8 @@ namespace Haier_E246_TestTool.ViewModels
                             {
                                 AddLog($"MES上传失败: {baseResult?.msg}");
                                 MesMessage = $"MES上传失败: {baseResult?.msg}"; // 更新画布信息
-
                                 ResultText = "FAIL (MES)";
-                                ResultColor =Brushes.Red;
+                                ResultColor = Brushes.Red;
                             }
                         }
                         else
@@ -516,7 +587,7 @@ namespace Haier_E246_TestTool.ViewModels
             {
                 AddLog($"测试过程异常: {ex.Message}");
                 ResultText = "ERROR";
-                ResultColor =Brushes.Red;
+                ResultColor = Brushes.Red;
                 MesMessage = $"异常: {ex.Message}";
             }
             finally
@@ -525,17 +596,35 @@ namespace Haier_E246_TestTool.ViewModels
                 _currentStepTcs = null;
             }
         }
+        /// <summary>
+        /// 执行发送命令并等待响应
+        /// </summary>
+        /// <param name="cmdId"></param>
+        /// <returns></returns>
         private async Task<bool> RunTestStep(byte cmdId)
         {
             _waitingCmdId = cmdId;
             _currentStepTcs = new TaskCompletionSource<bool>();
+
+            // 记录为等待响应状态
+            _testResultManager.RecordTestResult(cmdId, false, null, "等待响应");
 
             // 发送
             var packet = new DataPacket(cmdId);
             _serialService.SendData(packet.ToBytes());
 
             var completedTask = await Task.WhenAny(_currentStepTcs.Task, Task.Delay(2000));
-            return completedTask == _currentStepTcs.Task && _currentStepTcs.Task.Result;
+
+            if (completedTask == _currentStepTcs.Task)
+            {
+                return _currentStepTcs.Task.Result; // 返回验证结果
+            }
+            else
+            {
+                // 超时，记录失败
+                _testResultManager.RecordTestResult(cmdId, false, null, "超时未响应");
+                return false;
+            }
         }
         /// <summary>
         /// 处理接收到的数据
@@ -552,55 +641,120 @@ namespace Haier_E246_TestTool.ViewModels
                     AddLog($"收到CMD: {packet.CommandId:X2}, Len: {packet.Payload.Length}");
                     _logService.WriteLog($"接收：{BitConverter.ToString(rawData)}");
 
-                    // 如果正在自动测试，且收到了等待的指令，通知 Task 继续
+                    // 验证响应
+                    bool isValid = ValidateResponse(packet.CommandId, packet.Payload);
+                    string dataStr = GetDataString(packet.CommandId, packet.Payload);
+                    _testResultManager.RecordTestResult(packet.CommandId, isValid, dataStr,
+                        isValid ? null : $"响应数据无效: {dataStr}");
+
+                    // 如果正在自动测试，且收到了等待的指令，通知Task结果
                     if (IsAutoTesting && _currentStepTcs != null && packet.CommandId == _waitingCmdId)
                     {
-                        _currentStepTcs.TrySetResult(true);
+                        _currentStepTcs.TrySetResult(isValid);
                     }
+
+                    // 更新按钮状态（自动测试和手动测试都会更新）
                     var targetBtn = TestCommands.FirstOrDefault(x => x.CommandId == packet.CommandId);
                     if (targetBtn != null)
                     {
-                        targetBtn.SetSuccess();
+                        if (isValid)
+                            targetBtn.SetSuccess();
+                        else
+                            targetBtn.SetFail();
                     }
-                    switch (packet.CommandId)
-                    {
-                        case 0x00:
-                            IsHandshaked = true;
-                            var handshakePacket = new DataPacket(0x00);
-                            _serialService.SendData(handshakePacket.ToBytes());
-                            AddLog("已发送握手响应");
-                            break;
 
-                        case 0x03: // MAC 地址
-                            string mac = BitConverter.ToString(packet.Payload).Replace("-", "");
-                            DeviceMac = mac; // 更新界面显示
-                            AddLog($"[响应] MAC地址: {mac}");
-                            break;
-
-                        case 0x02:
-                            string levver = Encoding.ASCII.GetString(packet.Payload);
-                            WiFiVersion = levver;
-                            AddLog($"[响应] Wifi版本: {levver}");
-                            break;
-                        case 0x09:
-                            string rtsp = Encoding.ASCII.GetString(packet.Payload);
-                            _videoHelper.PlayVideo(rtsp, VlcPath);
-                            AddLog(rtsp);
-                            break;
-                        case 0x01:
-                            string devicelevver = Encoding.ASCII.GetString(packet.Payload);
-                            CameraVersion = devicelevver;
-                            AddLog($"[响应] Camera版本: {devicelevver}");
-                            break;
-                        case 0x08:
-                            string apip = Encoding.ASCII.GetString(packet.Payload);
-                            AddLog(apip);
-                            break;
-                        default:
-                            AddLog($"[响应] 未知命令 {packet.CommandId:X2}");
-                            break;
-                    }
+                    // 处理数据并更新界面
+                    ProcessResponseData(packet.CommandId, packet.Payload, isValid);
                 });
+            }
+        }
+        /// <summary>
+        /// 字符串结果转换
+        /// </summary>
+        /// <param name="commandId"></param>
+        /// <param name="payload"></param>
+        /// <returns></returns>
+        private string GetDataString(byte commandId, byte[] payload)
+        {
+            switch (commandId)
+            {
+                case 0x03: // MAC地址
+                    return BitConverter.ToString(payload).Replace("-", "");
+
+                case 0x02: // WiFi版本
+                case 0x01: // Camera版本
+                case 0x09: // RTSP视频
+                case 0x08: // AP模式IP
+                    return Encoding.ASCII.GetString(payload);
+                case 0x0B:
+                    return Encoding.ASCII.GetString(payload);
+                    case 0x05:
+                    return Encoding.ASCII.GetString(payload);
+
+                default:
+                    return BitConverter.ToString(payload);
+            }
+        }
+        /// <summary>
+        /// 接收结果方法
+        /// </summary>
+        /// <param name="commandId"></param>
+        /// <param name="payload"></param>
+        /// <param name="isValid"></param>
+        private void ProcessResponseData(byte commandId, byte[] payload, bool isValid)
+        {
+            switch (commandId)
+            {
+                case 0x00:
+                    IsHandshaked = true;
+                    var handshakePacket = new DataPacket(0x00);
+                    _serialService.SendData(handshakePacket.ToBytes());
+                    AddLog("已发送握手响应");
+                    break;
+
+                case 0x03: // MAC地址
+                    string mac = BitConverter.ToString(payload).Replace("-", "");
+                    DeviceMac = mac;
+                    AddLog($"[响应] MAC地址: {mac} {(isValid ? "(有效)" : "(无效)")}");
+                    break;
+
+                case 0x02: // WiFi版本
+                    string wifiVersion = Encoding.ASCII.GetString(payload);
+                    WiFiVersion = wifiVersion;
+                    AddLog($"[响应] WiFi版本: {wifiVersion} {(isValid ? "(有效)" : "(无效)")}");
+                    break;
+
+                case 0x01: // Camera版本
+                    string cameraVersion = Encoding.ASCII.GetString(payload);
+                    CameraVersion = cameraVersion;
+                    AddLog($"[响应] Camera版本: {cameraVersion} {(isValid ? "(有效)" : "(无效)")}");
+                    break;
+
+                case 0x09: // RTSP视频
+                    string rtsp = Encoding.ASCII.GetString(payload);
+                    _videoHelper.PlayVideo(rtsp, VlcPath);
+                    AddLog($"[响应] RTSP: {rtsp} {(isValid ? "(有效)" : "(无效)")}");
+                    break;
+
+                case 0x08: // AP模式IP
+                    string apIp = Encoding.ASCII.GetString(payload);
+                    AddLog($"[响应] AP模式IP: {apIp} {(isValid ? "(有效)" : "(无效)")}");
+                    break;
+                case 0x0A:
+                    string apPort = Encoding.ASCII.GetString( payload);
+                    AddLog($"连接wifi响应结果{apPort}");
+                    break;
+                case 0x0B:
+                    string apHost = Encoding.ASCII.GetString(payload);
+                    AddLog($"设备IP{apHost}");
+                    break;
+                    case 0x05:
+                    string lisence = Encoding.ASCII.GetString(payload);
+                    AddLog($"设备授权码{lisence}");
+                    break; 
+                default:
+                    AddLog($"[响应] 未知命令 {commandId:X2}");
+                    break;
             }
         }
         // 4. 选择 VLC 路径的命令
@@ -649,6 +803,8 @@ namespace Haier_E246_TestTool.ViewModels
                 _serialService.Close();
                 IsConnected = false;
                 IsHandshaked = false;
+                _testResultManager.Reset(); // 重置测试结果
+
                 if (TestCommands != null)
                 {
                     foreach (var item in TestCommands)
@@ -701,7 +857,7 @@ namespace Haier_E246_TestTool.ViewModels
                 case "Cmd6": cmdId = 0x01; break;
                 default: return;
             }
-
+            _testResultManager.RecordTestResult(cmdId, false, null, "等待响应");
             var packet = new DataPacket(cmdId, paramsData);
             _serialService.SendData(packet.ToBytes());
             _logService.WriteLog($"[发送] Cmd_{cmdId:X2}");
