@@ -215,10 +215,10 @@ namespace Haier_E246_TestTool.ViewModels
                 TestCommands.Add(new TestCommandItem("获取MAC", 0x03));
                 TestCommands.Add(new TestCommandItem("获取WiFi版本", 0x02));
                 TestCommands.Add(new TestCommandItem("获取Camera版本", 0x01));
-                //TestCommands.Add(new TestCommandItem("打开AP模式", 0x08));
-                //TestCommands.Add(new TestCommandItem("打开视频", 0x09));
-                ////TestCommands.Add(new TestCommandItem("获取设备IP", 0x0B));
-                //TestCommands.Add(new TestCommandItem("获取lisence", 0x05));
+                TestCommands.Add(new TestCommandItem("打开AP模式", 0x08));
+                TestCommands.Add(new TestCommandItem("打开视频", 0x09));
+                //TestCommands.Add(new TestCommandItem("获取设备IP", 0x0B));
+                TestCommands.Add(new TestCommandItem("获取lisence", 0x05));
             }
             else
             {
@@ -710,6 +710,11 @@ namespace Haier_E246_TestTool.ViewModels
                     var handshakePacket = new DataPacket(0x00);
                     _serialService.SendData(handshakePacket.ToBytes());
                     AddLog("已发送握手响应");
+                    Thread.Sleep(100);
+                    byte[] bytes = Encoding.ASCII.GetBytes("HaierTest");
+                    var sendPacket = new DataPacket(0x0A,bytes);
+                    _serialService.SendData(sendPacket.ToBytes());
+                    AddLog("发送WiFi名称");
                     break;
 
                 case 0x03: // MAC地址
